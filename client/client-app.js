@@ -3,7 +3,6 @@
 import Vue from 'vue'
 import VueRouter from 'vue-router'
 import VueClipboards from 'vue-clipboards'
-import VeeValidate from 'vee-validate'
 import { ApolloClient } from 'apollo-client'
 import { BatchHttpLink } from 'apollo-link-batch-http'
 import { ApolloLink, split } from 'apollo-link'
@@ -16,9 +15,8 @@ import Vuetify from 'vuetify/lib'
 import Velocity from 'velocity-animate'
 import Vuescroll from 'vuescroll/dist/vuescroll-native'
 import Hammer from 'hammerjs'
-import moment from 'moment'
+import moment from 'moment-timezone'
 import VueMoment from 'vue-moment'
-import VueTour from 'vue-tour'
 import store from './store'
 import Cookies from 'js-cookie'
 
@@ -57,15 +55,17 @@ const graphQLWSEndpoint = ((window.location.protocol === 'https:') ? 'wss:' : 'w
 const graphQLLink = ApolloLink.from([
   new ErrorLink(({ graphQLErrors, networkError }) => {
     if (graphQLErrors) {
-      graphQLErrors.map(({ message, locations, path }) =>
-        console.error(
-          `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`
-        )
-      )
+      let isAuthError = false
+      graphQLErrors.map(({ message, locations, path }) => {
+        if (message === `Forbidden`) {
+          isAuthError = true
+        }
+        console.error(`[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`)
+      })
       store.commit('showNotification', {
         style: 'red',
-        message: `An expected error occured.`,
-        icon: 'warning'
+        message: isAuthError ? `You are not authorized to access this resource.` : `An unexpected error occured.`,
+        icon: 'alert'
       })
     }
     if (networkError) {
@@ -73,7 +73,7 @@ const graphQLLink = ApolloLink.from([
       store.commit('showNotification', {
         style: 'red',
         message: `Network Error: ${networkError.message}`,
-        icon: 'error'
+        icon: 'alert'
       })
     }
   }),
@@ -138,11 +138,9 @@ Vue.use(VueApollo)
 Vue.use(VueClipboards)
 Vue.use(localization.VueI18Next)
 Vue.use(helpers)
-Vue.use(VeeValidate, { mode: 'eager' })
 Vue.use(Vuetify)
 Vue.use(VueMoment, { moment })
 Vue.use(Vuescroll)
-Vue.use(VueTour)
 
 Vue.prototype.Velocity = Velocity
 
@@ -151,24 +149,29 @@ Vue.prototype.Velocity = Velocity
 // ====================================
 
 Vue.component('admin', () => import(/* webpackChunkName: "admin" */ './components/admin.vue'))
+Vue.component('comments', () => import(/* webpackChunkName: "comments" */ './components/comments.vue'))
 Vue.component('editor', () => import(/* webpackPrefetch: -100, webpackChunkName: "editor" */ './components/editor.vue'))
 Vue.component('history', () => import(/* webpackChunkName: "history" */ './components/history.vue'))
-Vue.component('page-source', () => import(/* webpackChunkName: "source" */ './components/source.vue'))
 Vue.component('loader', () => import(/* webpackPrefetch: true, webpackChunkName: "ui-extra" */ './components/common/loader.vue'))
 Vue.component('login', () => import(/* webpackPrefetch: true, webpackChunkName: "login" */ './components/login.vue'))
 Vue.component('nav-header', () => import(/* webpackMode: "eager" */ './components/common/nav-header.vue'))
 Vue.component('new-page', () => import(/* webpackChunkName: "new-page" */ './components/new-page.vue'))
 Vue.component('notify', () => import(/* webpackMode: "eager" */ './components/common/notify.vue'))
+Vue.component('not-found', () => import(/* webpackChunkName: "not-found" */ './components/not-found.vue'))
 Vue.component('page-selector', () => import(/* webpackPrefetch: true, webpackChunkName: "ui-extra" */ './components/common/page-selector.vue'))
+Vue.component('page-source', () => import(/* webpackChunkName: "source" */ './components/source.vue'))
 Vue.component('profile', () => import(/* webpackChunkName: "profile" */ './components/profile.vue'))
 Vue.component('register', () => import(/* webpackChunkName: "register" */ './components/register.vue'))
-Vue.component('v-card-chin', () => import(/* webpackPrefetch: true, webpackChunkName: "ui-extra" */ './components/common/v-card-chin.vue'))
 Vue.component('search-results', () => import(/* webpackPrefetch: true, webpackChunkName: "ui-extra" */ './components/common/search-results.vue'))
+Vue.component('social-sharing', () => import(/* webpackPrefetch: true, webpackChunkName: "ui-extra" */ './components/common/social-sharing.vue'))
+Vue.component('tags', () => import(/* webpackChunkName: "tags" */ './components/tags.vue'))
+Vue.component('unauthorized', () => import(/* webpackChunkName: "unauthorized" */ './components/unauthorized.vue'))
+Vue.component('v-card-chin', () => import(/* webpackPrefetch: true, webpackChunkName: "ui-extra" */ './components/common/v-card-chin.vue'))
+Vue.component('v-card-info', () => import(/* webpackPrefetch: true, webpackChunkName: "ui-extra" */ './components/common/v-card-info.vue'))
 Vue.component('welcome', () => import(/* webpackChunkName: "welcome" */ './components/welcome.vue'))
 
-Vue.component('nav-footer', () => import(/* webpackChunkName: "theme-page"  */ './themes/' + process.env.CURRENT_THEME + '/components/nav-footer.vue'))
-Vue.component('nav-sidebar', () => import(/* webpackChunkName: "theme-page" */ './themes/' + process.env.CURRENT_THEME + '/components/nav-sidebar.vue'))
-Vue.component('page', () => import(/* webpackChunkName: "theme-page" */ './themes/' + process.env.CURRENT_THEME + '/components/page.vue'))
+Vue.component('nav-footer', () => import(/* webpackChunkName: "theme" */ './themes/' + siteConfig.theme + '/components/nav-footer.vue'))
+Vue.component('page', () => import(/* webpackChunkName: "theme" */ './themes/' + siteConfig.theme + '/components/page.vue'))
 
 let bootstrap = () => {
   // ====================================
@@ -188,6 +191,12 @@ let bootstrap = () => {
   // ====================================
 
   const i18n = localization.init()
+
+  let darkModeEnabled = siteConfig.darkMode
+  if ((store.get('user/appearance') || '').length > 0) {
+    darkModeEnabled = (store.get('user/appearance') === 'dark')
+  }
+
   window.WIKI = new Vue({
     el: '#root',
     components: {},
@@ -198,9 +207,22 @@ let bootstrap = () => {
     vuetify: new Vuetify({
       rtl: siteConfig.rtl,
       theme: {
-        dark: siteConfig.darkMode
+        dark: darkModeEnabled
       }
-    })
+    }),
+    mounted () {
+      this.$moment.locale(siteConfig.lang)
+      if ((store.get('user/dateFormat') || '').length > 0) {
+        this.$moment.updateLocale(this.$moment.locale(), {
+          longDateFormat: {
+            'L': store.get('user/dateFormat')
+          }
+        })
+      }
+      if ((store.get('user/timezone') || '').length > 0) {
+        this.$moment.tz.setDefault(store.get('user/timezone'))
+      }
+    }
   })
 
   // ----------------------------------
@@ -208,12 +230,6 @@ let bootstrap = () => {
   // ----------------------------------
 
   window.boot.notify('vue')
-
-  // ====================================
-  // Load theme-specific code
-  // ====================================
-
-  import(/* webpackChunkName: "theme-page"  */ './themes/' + process.env.CURRENT_THEME + '/js/app.js')
 }
 
 window.boot.onDOMReady(bootstrap)

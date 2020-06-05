@@ -1,6 +1,6 @@
 <template lang="pug">
   v-dialog(v-model='isShown', max-width='650', persistent)
-    v-card.wiki-form
+    v-card
       .dialog-header.is-short
         v-icon.mr-3(color='white') mdi-plus
         span New User
@@ -8,7 +8,7 @@
         v-btn.mx-0(color='white', outlined, disabled, dark)
           v-icon(left) mdi-database-import
           span Bulk Import
-      v-card-text
+      v-card-text.pt-5
         v-select(
           :items='providers'
           item-text='title'
@@ -23,11 +23,6 @@
           prepend-icon='mdi-at'
           v-model='email'
           label='Email Address'
-          v-validate='{ required: true, email: true, min: 2, max: 255 }',
-          data-vv-name='email',
-          data-vv-as='Email Address',
-          data-vv-scope='newUser',
-          :error-messages='errors.collect(`newUser.email`)'
           key='newUserEmail'
           persistent-hint
           ref='emailInput'
@@ -41,11 +36,6 @@
           :label='mustChangePwd ? `Temporary Password` : `Password`'
           counter='255'
           @click:append='generatePwd'
-          v-validate='{ required: true, min: 6, max: 255 }',
-          data-vv-name='password',
-          data-vv-as='Password',
-          data-vv-scope='newUser',
-          :error-messages='errors.collect(`newUser.password`)'
           key='newUserPassword'
           persistent-hint
           )
@@ -54,22 +44,21 @@
           prepend-icon='mdi-account-outline'
           v-model='name'
           label='Name'
-          v-validate='{ required: true, min: 2, max: 255 }',
-          data-vv-name='name',
-          data-vv-as='Name',
-          data-vv-scope='newUser',
-          :error-messages='errors.collect(`newUser.name`)'
+          :hint='provider === `local` ? `Can be changed by the user.` : `May be overwritten by the provider during login.`'
           key='newUserName'
           persistent-hint
           )
-        v-select(
+        v-select.mt-2(
           :items='groups'
           item-text='name'
-          item-value='key'
+          item-value='id'
+          item-disabled='isSystem'
           outlined
           prepend-icon='mdi-account-group'
           v-model='group'
           label='Assign to Group(s)...'
+          hint='Note that you cannot assign users to the Administrators or Guests groups from this dialog.'
+          persistent-hint
           clearable
           multiple
           )
@@ -86,20 +75,26 @@
           label='Send a welcome email'
           hide-details
           v-model='sendWelcomeEmail'
+          disabled
         )
       v-card-chin
         v-spacer
         v-btn(text, @click='isShown = false') Cancel
-        v-btn(depressed, color='primary', @click='newUser(false)', :disabled='errors.any(`newUser`)') Create
-        v-btn(depressed, color='primary', @click='newUser(true)', :disabled='errors.any(`newUser`)') Create and Close
+        v-btn.px-3(depressed, color='primary', @click='newUser(false)')
+          v-icon(left) mdi-chevron-right
+          span Create
+        v-btn.px-3(depressed, color='primary', @click='newUser(true)')
+          v-icon(left) mdi-chevron-double-right
+          span Create and Close
 </template>
 
 <script>
 import _ from 'lodash'
+import validate from 'validate.js'
+import gql from 'graphql-tag'
 
 import createUserMutation from 'gql/admin/users/users-mutation-create.gql'
-import providersQuery from 'gql/admin/users/users-query-strategies.gql'
-import groupsQuery from 'gql/admin/auth/auth-query-groups.gql'
+import groupsQuery from 'gql/admin/users/users-query-groups.gql'
 
 export default {
   props: {
@@ -116,7 +111,7 @@ export default {
       password: '',
       name: '',
       groups: [],
-      group: '',
+      group: [],
       mustChangePwd: false,
       sendWelcomeEmail: false
     }
@@ -130,20 +125,54 @@ export default {
   watch: {
     value(newValue, oldValue) {
       if (newValue) {
-        this.$validator.reset()
         this.$nextTick(() => {
           this.$refs.emailInput.focus()
         })
       }
-    },
-    provider(newValue, oldValue) {
-      this.$validator.reset()
     }
   },
   methods: {
     async newUser(close = false) {
-      const validationSuccess = await this.$validator.validateAll('newUser')
-      if (!validationSuccess) {
+      let rules = {
+        email: {
+          presence: {
+            allowEmpty: false
+          },
+          email: true
+        },
+        name: {
+          presence: {
+            allowEmpty: false
+          },
+          length: {
+            minimum: 2,
+            maximum: 255
+          }
+        }
+      }
+      if (this.provider === `local`) {
+        rules.password = {
+          presence: {
+            allowEmpty: false
+          },
+          length: {
+            minimum: 6,
+            maximum: 255
+          }
+        }
+      }
+      const validationResults = validate({
+        email: this.email,
+        password: this.password,
+        name: this.name
+      }, rules, { format: 'flat' })
+
+      if (validationResults) {
+        this.$store.commit('showNotification', {
+          style: 'red',
+          message: validationResults[0],
+          icon: 'alert'
+        })
         return
       }
 
@@ -155,7 +184,7 @@ export default {
             email: this.email,
             passwordRaw: this.password,
             name: this.name,
-            groups: this.groups,
+            groups: this.group,
             mustChangePassword: this.mustChangePwd,
             sendWelcomeEmail: this.sendWelcomeEmail
           },
@@ -176,6 +205,7 @@ export default {
 
           if (close) {
             this.isShown = false
+            this.$emit('refresh')
           } else {
             this.$refs.emailInput.focus()
           }
@@ -183,7 +213,7 @@ export default {
           this.$store.commit('showNotification', {
             style: 'red',
             message: _.get(resp, 'data.users.create.responseResult.message', 'An unexpected error occured.'),
-            icon: 'warning'
+            icon: 'alert'
           })
         }
       } catch (err) {
@@ -197,7 +227,20 @@ export default {
   },
   apollo: {
     providers: {
-      query: providersQuery,
+      query: gql`
+        query {
+          authentication {
+            strategies(
+              isEnabled: true
+            ) {
+              key
+              title
+              icon
+              color
+            }
+          }
+        }
+      `,
       fetchPolicy: 'network-only',
       update: (data) => data.authentication.strategies,
       watchLoading (isLoading) {

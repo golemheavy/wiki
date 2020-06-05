@@ -3,7 +3,7 @@
     v-layout(row, wrap)
       v-flex(xs12)
         .admin-header
-          img.animated.fadeInUp(src='/svg/icon-globe-earth.svg', alt='Locale', style='width: 80px;')
+          img.animated.fadeInUp(src='/_assets/svg/icon-globe-earth.svg', alt='Locale', style='width: 80px;')
           .admin-header-title
             .headline.primary--text.animated.fadeInLeft {{ $t('admin:locale.title') }}
             .subtitle-1.grey--text.animated.fadeInLeft.wait-p4s {{ $t('admin:locale.subtitle') }}
@@ -37,9 +37,10 @@
                           v-avatar.blue.white--text(tile, size='40', v-html='data.item.code.toUpperCase()')
                         v-list-item-content
                           v-list-item-title(v-html='data.item.name')
-                          v-list-item-sub-title(v-html='data.item.nativeName')
+                          v-list-item-subtitle(v-html='data.item.nativeName')
                   v-divider.mt-3
                   v-switch(
+                    inset
                     v-model='autoUpdate'
                     :label='$t("admin:locale.autoUpdate.label")'
                     color='primary'
@@ -52,6 +53,7 @@
                   v-toolbar-title.subtitle-1 {{ $t('admin:locale.namespacing') }}
                 v-card-text
                   v-switch(
+                    inset
                     v-model='namespacing'
                     :label='$t("admin:locale.namespaces.label")'
                     color='primary'
@@ -91,9 +93,9 @@
                           v-avatar.blue.white--text(tile, size='40', v-html='data.item.code.toUpperCase()')
                         v-list-item-content
                           v-list-item-title(v-html='data.item.name')
-                          v-list-item-sub-title(v-html='data.item.nativeName')
+                          v-list-item-subtitle(v-html='data.item.nativeName')
                         v-list-item-action
-                          v-checkbox(:input-value='data.tile.props.value', color='primary', value)
+                          v-checkbox(:input-value='data.attrs.inputValue', color='primary', value)
             v-flex(lg6 xs12)
               v-card.animated.fadeInUp.wait-p4s
                 v-toolbar(color='teal', dark, dense, flat)
@@ -114,13 +116,13 @@
                   template(v-slot:item.availability='{ item }')
                     .d-flex.align-center.pl-4
                       v-progress-circular(:value='item.availability', width='2', size='20', :color='item.availability <= 33 ? `red` : (item.availability <= 66) ? `orange` : `green`')
-                      .caption.ml-2(:class='item.availability <= 33 ? `red--text` : (item.availability <= 66) ? `orange--text` : `green--text`') {{item.availability}}%
+                      .caption.mx-2(:class='item.availability <= 33 ? `red--text` : (item.availability <= 66) ? `orange--text` : `green--text`') {{item.availability}}%
                   template(v-slot:item.isInstalled='{ item }')
                     v-progress-circular(v-if='item.isDownloading', indeterminate, color='blue', size='20', :width='2')
                     v-btn(v-else-if='item.isInstalled && item.installDate < item.updatedAt', icon, small, @click='download(item)')
                       v-icon.blue--text mdi-cached
                     v-btn(v-else-if='item.isInstalled', icon, small, @click='download(item)')
-                      v-icon.green--text mdi-check
+                      v-icon.green--text mdi-check-bold
                     v-btn(v-else, icon, small, @click='download(item)')
                       v-icon.grey--text mdi-cloud-download
               v-card.wiki-form.mt-3.animated.fadeInUp.wait-p5s
@@ -187,7 +189,7 @@ export default {
           align: 'center',
           value: 'availability',
           sortable: false,
-          width: 100
+          width: 120
         },
         {
           text: this.$t('admin:locale.download'),
@@ -254,6 +256,10 @@ export default {
           style: 'success',
           icon: 'check'
         })
+
+        _.delay(() => {
+          window.location.reload(true)
+        }, 1000)
       } else {
         this.$store.commit('showNotification', {
           message: `Error: ${resp.message}`,

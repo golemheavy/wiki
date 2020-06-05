@@ -3,7 +3,6 @@
 const bcrypt = require('bcryptjs-then')
 const _ = require('lodash')
 const tfa = require('node-2fa')
-const securityHelper = require('../helpers/security')
 const jwt = require('jsonwebtoken')
 const Model = require('objection').Model
 const validate = require('validate.js')
@@ -27,7 +26,6 @@ module.exports = class User extends Model {
         name: {type: 'string', minLength: 1, maxLength: 255},
         providerId: {type: 'string'},
         password: {type: 'string'},
-        role: {type: 'string', enum: ['admin', 'guest', 'user']},
         tfaIsActive: {type: 'boolean', default: false},
         tfaSecret: {type: 'string'},
         jobTitle: {type: 'string'},
@@ -180,6 +178,20 @@ module.exports = class User extends Model {
     }
     primaryEmail = _.toLower(primaryEmail)
 
+    // Find pending social user
+    if (!user) {
+      user = await WIKI.models.users.query().findOne({
+        email: primaryEmail,
+        providerId: null,
+        providerKey
+      })
+      if (user) {
+        user = await user.$query().patchAndFetch({
+          providerId: _.toString(profile.id)
+        })
+      }
+    }
+
     // Parse display name
     let displayName = ''
     if (_.isString(profile.displayName) && profile.displayName.length > 0) {
@@ -191,7 +203,10 @@ module.exports = class User extends Model {
     }
 
     // Parse picture URL
-    let pictureUrl = _.get(profile, 'picture', _.get(user, 'pictureUrl', null))
+    let pictureUrl = _.truncate(_.get(profile, 'picture', _.get(user, 'pictureUrl', null)), {
+      length: 255,
+      omission: ''
+    })
 
     // Update existing user
     if (user) {
@@ -266,30 +281,46 @@ module.exports = class User extends Model {
           if (err) { return reject(err) }
           if (!user) { return reject(new WIKI.Error.AuthLoginFailed()) }
 
+          // Must Change Password?
+          if (user.mustChangePwd) {
+            try {
+              const pwdChangeToken = await WIKI.models.userKeys.generateToken({
+                kind: 'changePwd',
+                userId: user.id
+              })
+
+              return resolve({
+                mustChangePwd: true,
+                continuationToken: pwdChangeToken
+              })
+            } catch (errc) {
+              WIKI.logger.warn(errc)
+              return reject(new WIKI.Error.AuthGenericError())
+            }
+          }
+
           // Is 2FA required?
           if (user.tfaIsActive) {
             try {
-              let loginToken = await securityHelper.generateToken(32)
-              await WIKI.redis.set(`tfa:${loginToken}`, user.id, 'EX', 600)
+              const tfaToken = await WIKI.models.userKeys.generateToken({
+                kind: 'tfa',
+                userId: user.id
+              })
               return resolve({
                 tfaRequired: true,
-                tfaLoginToken: loginToken
+                continuationToken: tfaToken
               })
-            } catch (err) {
-              WIKI.logger.warn(err)
+            } catch (errc) {
+              WIKI.logger.warn(errc)
               return reject(new WIKI.Error.AuthGenericError())
             }
-          } else {
-            // No 2FA, log in user
-            return context.req.logIn(user, { session: !strInfo.useForm }, async err => {
-              if (err) { return reject(err) }
-              const jwtToken = await WIKI.models.users.refreshToken(user)
-              resolve({
-                jwt: jwtToken.token,
-                tfaRequired: false
-              })
-            })
           }
+
+          context.req.logIn(user, { session: !strInfo.useForm }, async errc => {
+            if (errc) { return reject(errc) }
+            const jwtToken = await WIKI.models.users.refreshToken(user)
+            resolve({ jwt: jwtToken.token })
+          })
         })(context.req, context.res, () => {})
       })
     } else {
@@ -299,7 +330,7 @@ module.exports = class User extends Model {
 
   static async refreshToken(user) {
     if (_.isSafeInteger(user)) {
-      user = await WIKI.models.users.query().findById(user).eager('groups').modifyEager('groups', builder => {
+      user = await WIKI.models.users.query().findById(user).withGraphFetched('groups').modifyGraph('groups', builder => {
         builder.select('groups.id', 'permissions')
       })
       if (!user) {
@@ -307,18 +338,24 @@ module.exports = class User extends Model {
         throw new WIKI.Error.AuthGenericError()
       }
     } else if (_.isNil(user.groups)) {
-      await user.$relatedQuery('groups').select('groups.id', 'permissions')
+      user.groups = await user.$relatedQuery('groups').select('groups.id', 'permissions')
     }
+
+    // Update Last Login Date
+    // -> Bypass Objection.js to avoid updating the updatedAt field
+    await WIKI.models.knex('users').where('id', user.id).update({ lastLoginAt: new Date().toISOString() })
 
     return {
       token: jwt.sign({
         id: user.id,
         email: user.email,
         name: user.name,
-        pictureUrl: user.pictureUrl,
-        timezone: user.timezone,
-        localeCode: user.localeCode,
-        defaultEditor: user.defaultEditor,
+        av: user.pictureUrl,
+        tz: user.timezone,
+        lc: user.localeCode,
+        df: user.dateFormat,
+        ap: user.appearance,
+        // defaultEditor: user.defaultEditor,
         permissions: user.getGlobalPermissions(),
         groups: user.getGroups()
       }, {
@@ -334,7 +371,7 @@ module.exports = class User extends Model {
     }
   }
 
-  static async loginTFA(opts, context) {
+  static async loginTFA (opts, context) {
     if (opts.securityCode.length === 6 && opts.loginToken.length === 64) {
       let result = await WIKI.redis.get(`tfa:${opts.loginToken}`)
       if (result) {
@@ -360,40 +397,100 @@ module.exports = class User extends Model {
     throw new WIKI.Error.AuthTFAInvalid()
   }
 
+  /**
+   * Change Password from a Mandatory Password Change after Login
+   */
+  static async loginChangePassword ({ continuationToken, newPassword }, context) {
+    if (!newPassword || newPassword.length < 6) {
+      throw new WIKI.Error.InputInvalid('Password must be at least 6 characters!')
+    }
+    const usr = await WIKI.models.userKeys.validateToken({
+      kind: 'changePwd',
+      token: continuationToken
+    })
+
+    if (usr) {
+      await WIKI.models.users.query().patch({
+        password: newPassword,
+        mustChangePwd: false
+      }).findById(usr.id)
+
+      return new Promise((resolve, reject) => {
+        context.req.logIn(usr, { session: false }, async err => {
+          if (err) { return reject(err) }
+          const jwtToken = await WIKI.models.users.refreshToken(usr)
+          resolve({ jwt: jwtToken.token })
+        })
+      })
+    } else {
+      throw new WIKI.Error.UserNotFound()
+    }
+  }
+
+  /**
+   * Create a new user
+   *
+   * @param {Object} param0 User Fields
+   */
   static async createNewUser ({ providerKey, email, passwordRaw, name, groups, mustChangePassword, sendWelcomeEmail }) {
     // Input sanitization
     email = _.toLower(email)
 
     // Input validation
-    const validation = validate({
-      email,
-      passwordRaw,
-      name
-    }, {
-      email: {
-        email: true,
-        length: {
-          maximum: 255
-        }
-      },
-      passwordRaw: {
-        presence: {
-          allowEmpty: false
+    let validation = null
+    if (providerKey === 'local') {
+      validation = validate({
+        email,
+        passwordRaw,
+        name
+      }, {
+        email: {
+          email: true,
+          length: {
+            maximum: 255
+          }
         },
-        length: {
-          minimum: 6
-        }
-      },
-      name: {
-        presence: {
-          allowEmpty: false
+        passwordRaw: {
+          presence: {
+            allowEmpty: false
+          },
+          length: {
+            minimum: 6
+          }
         },
-        length: {
-          minimum: 2,
-          maximum: 255
+        name: {
+          presence: {
+            allowEmpty: false
+          },
+          length: {
+            minimum: 2,
+            maximum: 255
+          }
         }
-      }
-    }, { format: 'flat' })
+      }, { format: 'flat' })
+    } else {
+      validation = validate({
+        email,
+        name
+      }, {
+        email: {
+          email: true,
+          length: {
+            maximum: 255
+          }
+        },
+        name: {
+          presence: {
+            allowEmpty: false
+          },
+          length: {
+            minimum: 2,
+            maximum: 255
+          }
+        }
+      }, { format: 'flat' })
+    }
+
     if (validation && validation.length > 0) {
       throw new WIKI.Error.InputInvalid(validation[0])
     }
@@ -402,19 +499,25 @@ module.exports = class User extends Model {
     const usr = await WIKI.models.users.query().findOne({ email, providerKey })
     if (!usr) {
       // Create the account
-      const newUsr = await WIKI.models.users.query().insert({
-        provider: providerKey,
+      let newUsrData = {
+        providerKey,
         email,
         name,
-        password: passwordRaw,
         locale: 'en',
         defaultEditor: 'markdown',
         tfaIsActive: false,
         isSystem: false,
         isActive: true,
         isVerified: true,
-        mustChangePwd: (mustChangePassword === true)
-      })
+        mustChangePwd: false
+      }
+
+      if (providerKey === `local`) {
+        newUsrData.password = passwordRaw
+        newUsrData.mustChangePwd = (mustChangePassword === true)
+      }
+
+      const newUsr = await WIKI.models.users.query().insert(newUsrData)
 
       // Assign to group(s)
       if (groups.length > 0) {
@@ -442,6 +545,96 @@ module.exports = class User extends Model {
     }
   }
 
+  /**
+   * Update an existing user
+   *
+   * @param {Object} param0 User ID and fields to update
+   */
+  static async updateUser ({ id, email, name, newPassword, groups, location, jobTitle, timezone, dateFormat, appearance }) {
+    const usr = await WIKI.models.users.query().findById(id)
+    if (usr) {
+      let usrData = {}
+      if (!_.isEmpty(email) && email !== usr.email) {
+        const dupUsr = await WIKI.models.users.query().select('id').where({
+          email,
+          providerKey: usr.providerKey
+        }).first()
+        if (dupUsr) {
+          throw new WIKI.Error.AuthAccountAlreadyExists()
+        }
+        usrData.email = email
+      }
+      if (!_.isEmpty(name) && name !== usr.name) {
+        usrData.name = _.trim(name)
+      }
+      if (!_.isEmpty(newPassword)) {
+        if (newPassword.length < 6) {
+          throw new WIKI.Error.InputInvalid('Password must be at least 6 characters!')
+        }
+        usrData.password = newPassword
+      }
+      if (_.isArray(groups)) {
+        const usrGroupsRaw = await usr.$relatedQuery('groups')
+        const usrGroups = _.map(usrGroupsRaw, 'id')
+        // Relate added groups
+        const addUsrGroups = _.difference(groups, usrGroups)
+        for (const grp of addUsrGroups) {
+          await usr.$relatedQuery('groups').relate(grp)
+        }
+        // Unrelate removed groups
+        const remUsrGroups = _.difference(usrGroups, groups)
+        for (const grp of remUsrGroups) {
+          await usr.$relatedQuery('groups').unrelate().where('groupId', grp)
+        }
+      }
+      if (!_.isEmpty(location) && location !== usr.location) {
+        usrData.location = _.trim(location)
+      }
+      if (!_.isEmpty(jobTitle) && jobTitle !== usr.jobTitle) {
+        usrData.jobTitle = _.trim(jobTitle)
+      }
+      if (!_.isEmpty(timezone) && timezone !== usr.timezone) {
+        usrData.timezone = timezone
+      }
+      if (!_.isNil(dateFormat) && dateFormat !== usr.dateFormat) {
+        usrData.dateFormat = dateFormat
+      }
+      if (!_.isNil(appearance) && appearance !== usr.appearance) {
+        usrData.appearance = appearance
+      }
+      await WIKI.models.users.query().patch(usrData).findById(id)
+    } else {
+      throw new WIKI.Error.UserNotFound()
+    }
+  }
+
+  /**
+   * Delete a User
+   *
+   * @param {*} id User ID
+   */
+  static async deleteUser (id, replaceId) {
+    const usr = await WIKI.models.users.query().findById(id)
+    if (usr) {
+      await WIKI.models.assets.query().patch({ authorId: replaceId }).where('authorId', id)
+      await WIKI.models.comments.query().patch({ authorId: replaceId }).where('authorId', id)
+      await WIKI.models.pageHistory.query().patch({ authorId: replaceId }).where('authorId', id)
+      await WIKI.models.pages.query().patch({ authorId: replaceId }).where('authorId', id)
+      await WIKI.models.pages.query().patch({ creatorId: replaceId }).where('creatorId', id)
+
+      await WIKI.models.userKeys.query().delete().where('userId', id)
+      await WIKI.models.users.query().deleteById(id)
+    } else {
+      throw new WIKI.Error.UserNotFound()
+    }
+  }
+
+  /**
+   * Register a new user (client-side registration)
+   *
+   * @param {Object} param0 User fields
+   * @param {Object} context GraphQL Context
+   */
   static async register ({ email, password, name, verify = false, bypassChecks = false }, context) {
     const localStrg = await WIKI.models.authentication.getStrategy('local')
     // Check if self-registration is enabled
@@ -544,7 +737,7 @@ module.exports = class User extends Model {
   }
 
   static async getGuestUser () {
-    const user = await WIKI.models.users.query().findById(2).eager('groups').modifyEager('groups', builder => {
+    const user = await WIKI.models.users.query().findById(2).withGraphJoined('groups').modifyGraph('groups', builder => {
       builder.select('groups.id', 'permissions')
     })
     if (!user) {
@@ -552,6 +745,16 @@ module.exports = class User extends Model {
       process.exit(1)
     }
     user.permissions = user.getGlobalPermissions()
+    return user
+  }
+
+  static async getRootUser () {
+    let user = await WIKI.models.users.query().findById(1)
+    if (!user) {
+      WIKI.logger.error('CRITICAL ERROR: Root Administrator user is missing!')
+      process.exit(1)
+    }
+    user.permissions = ['manage:system']
     return user
   }
 }

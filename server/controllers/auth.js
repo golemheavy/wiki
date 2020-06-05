@@ -2,7 +2,7 @@
 
 const express = require('express')
 const ExpressBrute = require('express-brute')
-const BruteKnex = require('brute-knex')
+const BruteKnex = require('../helpers/brute-knex')
 const router = express.Router()
 const moment = require('moment')
 const _ = require('lodash')
@@ -25,7 +25,7 @@ const bruteforce = new ExpressBrute(new BruteKnex({
 router.get('/login', async (req, res, next) => {
   _.set(res.locals, 'pageMeta.title', 'Login')
 
-  if (req.query.legacy || req.get('user-agent').indexOf('Trident') >= 0) {
+  if (req.query.legacy || (req.get('user-agent') && req.get('user-agent').indexOf('Trident') >= 0)) {
     const { formStrategies, socialStrategies } = await WIKI.models.authentication.getStrategiesForLegacyClient()
     res.render('legacy/login', {
       err: false,
@@ -122,12 +122,16 @@ router.get('/register', async (req, res, next) => {
  * Verify
  */
 router.get('/verify/:token', bruteforce.prevent, async (req, res, next) => {
-  const usr = await WIKI.models.userKeys.validateToken({ kind: 'verify', token: req.params.token })
-  await WIKI.models.users.query().patch({ isVerified: true }).where('id', usr.id)
-  const result = await WIKI.models.users.refreshToken(usr)
-  req.brute.reset()
-  res.cookie('jwt', result.token, { expires: moment().add(1, 'years').toDate() })
-  res.redirect('/')
+  try {
+    const usr = await WIKI.models.userKeys.validateToken({ kind: 'verify', token: req.params.token })
+    await WIKI.models.users.query().patch({ isVerified: true }).where('id', usr.id)
+    const result = await WIKI.models.users.refreshToken(usr)
+    req.brute.reset()
+    res.cookie('jwt', result.token, { expires: moment().add(1, 'years').toDate() })
+    res.redirect('/')
+  } catch (err) {
+    next(err)
+  }
 })
 
 /**

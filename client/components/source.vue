@@ -1,17 +1,23 @@
 <template lang='pug'>
-  v-app(:dark='darkMode').source
+  v-app(:dark='$vuetify.theme.dark').source
     nav-header
     v-content
       v-toolbar(color='primary', dark)
-        i18next.subheading(path='common:page.viewingSource', tag='div')
+        i18next.subheading(v-if='versionId > 0', path='common:page.viewingSourceVersion', tag='div')
+          strong(place='date', :title='$options.filters.moment(versionDate, `LLL`)') {{versionDate | moment('lll')}}
+          strong(place='path') /{{path}}
+        i18next.subheading(v-else, path='common:page.viewingSource', tag='div')
           strong(place='path') /{{path}}
         template(v-if='$vuetify.breakpoint.mdAndUp')
           v-spacer
           .caption.blue--text.text--lighten-3 {{$t('common:page.id', { id: pageId })}}
+          .caption.blue--text.text--lighten-3.ml-4(v-if='versionId > 0') {{$t('common:page.versionId', { id: versionId })}}
+          v-btn.ml-4(v-if='versionId > 0', depressed, color='blue darken-1', @click='goHistory')
+            v-icon mdi-history
           v-btn.ml-4(depressed, color='blue darken-1', @click='goLive') {{$t('common:page.returnNormalView')}}
       v-card(tile)
         v-card-text
-          v-card.grey.radius-7(flat, :class='darkMode ? `darken-4` : `lighten-4`')
+          v-card.grey.radius-7(flat, :class='$vuetify.theme.dark ? `darken-4` : `lighten-4`')
             v-card-text
               pre
                 code
@@ -23,8 +29,6 @@
 </template>
 
 <script>
-import { get } from 'vuex-pathify'
-
 export default {
   props: {
     pageId: {
@@ -38,13 +42,18 @@ export default {
     path: {
       type: String,
       default: 'home'
+    },
+    versionId: {
+      type: Number,
+      default: 0
+    },
+    versionDate: {
+      type: String,
+      default: ''
     }
   },
   data() {
     return {}
-  },
-  computed: {
-    darkMode: get('site/dark')
   },
   created () {
     this.$store.commit('page/SET_ID', this.id)
@@ -55,7 +64,10 @@ export default {
   },
   methods: {
     goLive() {
-      window.location.assign(`/${this.path}`)
+      window.location.assign(`/${this.locale}/${this.path}`)
+    },
+    goHistory () {
+      window.location.assign(`/h/${this.locale}/${this.path}`)
     }
   }
 }

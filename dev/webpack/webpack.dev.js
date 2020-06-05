@@ -3,13 +3,12 @@ const path = require('path')
 const fs = require('fs-extra')
 const yargs = require('yargs').argv
 const _ = require('lodash')
-const Fiber = require('fibers')
 
 const { VueLoaderPlugin } = require('vue-loader')
 const CopyWebpackPlugin = require('copy-webpack-plugin')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const HtmlWebpackPugPlugin = require('html-webpack-pug-plugin')
-const SriWebpackPlugin = require('webpack-subresource-integrity')
+const MomentTimezoneDataPlugin = require('moment-timezone-data-webpack-plugin')
 const VuetifyLoaderPlugin = require('vuetify-loader/lib/plugin')
 const WriteFilePlugin = require('write-file-webpack-plugin')
 const WebpackBarPlugin = require('webpackbar')
@@ -31,7 +30,7 @@ module.exports = {
   },
   output: {
     path: path.join(process.cwd(), 'assets'),
-    publicPath: '/',
+    publicPath: '/_assets/',
     filename: 'js/[name].js',
     chunkFilename: 'js/[name].js',
     globalObject: 'this',
@@ -42,7 +41,9 @@ module.exports = {
     rules: [
       {
         test: /\.js$/,
-        exclude: /node_modules/,
+        exclude: (modulePath) => {
+          return modulePath.includes('node_modules') && !modulePath.includes('vuetify')
+        },
         use: [
           {
             loader: 'cache-loader',
@@ -83,7 +84,6 @@ module.exports = {
             loader: 'sass-loader',
             options: {
               implementation: require('sass'),
-              fiber: Fiber,
               sourceMap: false
             }
           }
@@ -105,7 +105,6 @@ module.exports = {
             loader: 'sass-loader',
             options: {
               implementation: require('sass'),
-              fiber: Fiber,
               sourceMap: false
             }
           },
@@ -174,29 +173,22 @@ module.exports = {
             outputPath: 'fonts/'
           }
         }]
-      },
-      {
-        test: /.jsx$/,
-        loader: 'babel-loader',
-        exclude: /node_modules/,
-        options: {
-          presets: ['es2015', 'react']
-        }
-      },
-      {
-        test: /\.flow$/,
-        loader: 'ignore-loader'
       }
     ]
   },
   plugins: [
     new VueLoaderPlugin(),
     new VuetifyLoaderPlugin(),
-    new CopyWebpackPlugin([
-      { from: 'client/static' },
-      { from: './node_modules/prismjs/components', to: 'js/prism' },
-      { from: './node_modules/graphql-voyager/dist/voyager.worker.js', to: 'js/' }
-    ], {}),
+    new MomentTimezoneDataPlugin({
+      startYear: 2017,
+      endYear: (new Date().getFullYear()) + 5
+    }),
+    new CopyWebpackPlugin({
+      patterns: [
+        { from: 'client/static' },
+        { from: './node_modules/prismjs/components', to: 'js/prism' }
+      ]
+    }),
     new HtmlWebpackPlugin({
       template: 'dev/templates/master.pug',
       filename: '../server/views/master.pug',
@@ -219,17 +211,12 @@ module.exports = {
       excludeChunks: ['app', 'legacy']
     }),
     new HtmlWebpackPugPlugin(),
-    new SriWebpackPlugin({
-      hashFuncNames: ['sha256', 'sha512'],
-      enabled: false
-    }),
     new WebpackBarPlugin({
       name: 'Client Assets'
     }),
     new webpack.DefinePlugin({
       'process.env.NODE_ENV': JSON.stringify('development'),
-      'process.env.CURRENT_THEME': JSON.stringify(_.defaultTo(yargs.theme, 'default')),
-      '__REACT_DEVTOOLS_GLOBAL_HOOK__': '({ isDisabled: true })'
+      'process.env.CURRENT_THEME': JSON.stringify(_.defaultTo(yargs.theme, 'default'))
     }),
     new WriteFilePlugin(),
     new webpack.HotModuleReplacementPlugin(),
@@ -271,7 +258,6 @@ module.exports = {
     extensions: [
       '.js',
       '.json',
-      '.jsx',
       '.vue'
     ],
     modules: [

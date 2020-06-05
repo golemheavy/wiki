@@ -1,29 +1,29 @@
 <template lang="pug">
-  .search-results(v-if='searchIsFocused || search.length > 1')
+  .search-results(v-if='searchIsFocused || (search && search.length > 1)')
     .search-results-container
-      .search-results-help(v-if='search.length < 2')
-        img(src='/svg/icon-search-alt.svg')
+      .search-results-help(v-if='!search || (search && search.length < 2)')
+        img(src='/_assets/svg/icon-search-alt.svg')
         .mt-4 {{$t('common:header.searchHint')}}
-      .search-results-loader(v-else-if='searchIsLoading && results.length < 1')
+      .search-results-loader(v-else-if='searchIsLoading && (!results || results.length < 1)')
         orbit-spinner(
           :animation-duration='1000'
           :size='100'
           color='#FFF'
         )
         .headline.mt-5 {{$t('common:header.searchLoading')}}
-      .search-results-none(v-else-if='!searchIsLoading && results.length < 1')
-        img(src='/svg/icon-no-results.svg', alt='No Results')
+      .search-results-none(v-else-if='!searchIsLoading && (!results || results.length < 1)')
+        img(src='/_assets/svg/icon-no-results.svg', alt='No Results')
         .subheading {{$t('common:header.searchNoResult')}}
-      template(v-if='results.length > 0')
+      template(v-if='results && results.length > 0')
         v-subheader.white--text {{$t('common:header.searchResultsCount', { total: response.totalHits })}}
-        v-list.search-results-items.radius-7.py-0(two-line)
+        v-list.search-results-items.radius-7.py-0(two-line, dense)
           template(v-for='(item, idx) of results')
             v-list-item(@click='goToPage(item)', :key='item.id', :class='idx === cursor ? `highlighted` : ``')
               v-list-item-avatar(tile)
-                img(src='/svg/icon-selective-highlighting.svg')
+                img(src='/_assets/svg/icon-selective-highlighting.svg')
               v-list-item-content
                 v-list-item-title(v-html='item.title')
-                v-list-item-subtitle(v-html='item.description')
+                v-list-item-subtitle.caption(v-html='item.description')
                 .caption.grey--text(v-html='item.path')
               v-list-item-action
                 v-chip(label, outlined) {{item.locale.toUpperCase()}}
@@ -33,8 +33,9 @@
           dark
           v-model='pagination'
           :length='paginationLength'
+          circle
         )
-      template(v-if='suggestions.length > 0')
+      template(v-if='suggestions && suggestions.length > 0')
         v-subheader.white--text.mt-3 {{$t('common:header.searchDidYouMean')}}
         v-list.search-results-suggestions.radius-7(dense, dark)
           template(v-for='(term, idx) of suggestions')
@@ -44,10 +45,10 @@
               v-list-item-content
                 v-list-item-title(v-html='term')
             v-divider(v-if='idx < suggestions.length - 1')
-      .text-xs-center.pt-5(v-if='search.length > 1')
-        v-btn.mx-2(outlined, color='orange', @click='search = ``', v-if='results.length > 0')
-          v-icon(left) mdi-content-save
-          span {{$t('common:header.searchCopyLink')}}
+      .text-xs-center.pt-5(v-if='search && search.length > 1')
+        //- v-btn.mx-2(outlined, color='orange', @click='search = ``', v-if='results.length > 0')
+        //-   v-icon(left) mdi-content-save
+        //-   span {{$t('common:header.searchCopyLink')}}
         v-btn.mx-2(outlined, color='pink', @click='search = ``')
           v-icon(left) mdi-close
           span {{$t('common:header.searchClose')}}
@@ -68,6 +69,7 @@ export default {
     return {
       cursor: 0,
       pagination: 1,
+      perPage: 10,
       response: {
         results: [],
         suggestions: [],
@@ -82,7 +84,8 @@ export default {
     searchRestrictLocale: sync('site/searchRestrictLocale'),
     searchRestrictPath: sync('site/searchRestrictPath'),
     results() {
-      return this.response.results ? this.response.results : []
+      const currentIndex = (this.pagination - 1) * this.perPage
+      return this.response.results ? _.slice(this.response.results, currentIndex, currentIndex + this.perPage) : []
     },
     hits() {
       return this.response.totalHits ? this.response.totalHits : 0
@@ -91,15 +94,16 @@ export default {
       return this.response.suggestions ? this.response.suggestions : []
     },
     paginationLength() {
-      return (this.response.totalHits > 0) ? 0 : Math.ceil(this.response.totalHits / 10)
+      return (this.response.totalHits > 0) ? Math.ceil(this.response.totalHits / this.perPage) : 0
     }
   },
   watch: {
     search(newValue, oldValue) {
       this.cursor = 0
-      if (newValue.length < 2) {
+      if (!newValue || (newValue && newValue.length < 2)) {
         this.response.results = []
         this.response.suggestions = []
+        this.searchIsLoading = false
       } else {
         this.searchIsLoading = true
       }
@@ -115,6 +119,10 @@ export default {
       }
     })
     this.$root.$on('searchEnter', () => {
+      if (!this.results) {
+        return
+      }
+
       if (this.cursor >= 0 && this.cursor < this.results.length) {
         this.goToPage(_.nth(this.results, this.cursor))
       } else if (this.cursor >= 0) {
@@ -209,6 +217,10 @@ export default {
 
     .highlighted {
       background: #FFF linear-gradient(to bottom, #FFF, mc('orange', '100'));
+
+      @at-root .theme--dark & {
+        background: mc('grey', '900') linear-gradient(to bottom, mc('orange', '900'), darken(mc('orange', '900'), 15%));
+      }
     }
   }
 

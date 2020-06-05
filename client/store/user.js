@@ -9,6 +9,9 @@ const state = {
   pictureUrl: '',
   localeCode: '',
   defaultEditor: '',
+  timezone: '',
+  dateFormat: '',
+  appearance: '',
   permissions: [],
   iat: 0,
   exp: 0,
@@ -20,21 +23,24 @@ export default {
   state,
   mutations: {
     ...make.mutations(state),
-    REFRESH_AUTH(state) {
+    REFRESH_AUTH(st) {
       const jwtCookie = Cookies.get('jwt')
       if (jwtCookie) {
         try {
           const jwtData = jwt.decode(jwtCookie)
-          state.id = jwtData.id
-          state.email = jwtData.email
-          state.name = jwtData.name
-          state.pictureUrl = jwtData.pictureUrl
-          state.localeCode = jwtData.localeCode
-          state.defaultEditor = jwtData.defaultEditor
-          state.permissions = jwtData.permissions
-          state.iat = jwtData.iat
-          state.exp = jwtData.exp
-          state.authenticated = true
+          st.id = jwtData.id
+          st.email = jwtData.email
+          st.name = jwtData.name
+          st.pictureUrl = jwtData.av
+          st.localeCode = jwtData.lc
+          st.timezone = jwtData.tz || Intl.DateTimeFormat().resolvedOptions().timeZone || ''
+          st.dateFormat = jwtData.df || ''
+          st.appearance = jwtData.ap || ''
+          // st.defaultEditor = jwtData.defaultEditor
+          st.permissions = jwtData.permissions
+          st.iat = jwtData.iat
+          st.exp = jwtData.exp
+          st.authenticated = true
         } catch (err) {
           console.debug('Invalid JWT. Silent authentication skipped.')
         }

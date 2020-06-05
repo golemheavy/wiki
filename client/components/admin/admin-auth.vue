@@ -3,12 +3,14 @@
     v-layout(row, wrap)
       v-flex(xs12)
         .admin-header
-          img.animated.fadeInUp(src='/svg/icon-unlock.svg', alt='Authentication', style='width: 80px;')
+          img.animated.fadeInUp(src='/_assets/svg/icon-unlock.svg', alt='Authentication', style='width: 80px;')
           .admin-header-title
             .headline.primary--text.animated.fadeInLeft {{ $t('admin:auth.title') }}
             .subtitle-1.grey--text.animated.fadeInLeft.wait-p4s {{ $t('admin:auth.subtitle') }}
           v-spacer
-          v-btn.animated.fadeInDown.wait-p2s.mr-3(outlined, color='grey', @click='refresh', large)
+          v-btn.animated.fadeInDown.wait-p3s(icon, outlined, color='grey', href='https://docs.requarks.io/auth', target='_blank')
+            v-icon mdi-help-circle
+          v-btn.animated.fadeInDown.wait-p2s.mx-3(icon, outlined, color='grey', @click='refresh')
             v-icon mdi-refresh
           v-btn.animated.fadeInDown(color='success', @click='save', depressed, large)
             v-icon(left) mdi-check
@@ -63,10 +65,19 @@
             )
 
       v-flex(xs12, lg9)
-
         v-card.animated.fadeInUp.wait-p2s
           v-toolbar(color='primary', dense, flat, dark)
             .subtitle-1 {{strategy.title}}
+            v-spacer
+            v-switch(
+              dark
+              color='blue lighten-5'
+              label='Active'
+              v-model='strategy.isEnabled'
+              hide-details
+              inset
+              :disabled='strategy.key === `local`'
+              )
           v-card-text
             v-form
               .authlogo
@@ -83,49 +94,52 @@
               .overline.my-5 {{$t('admin:auth.strategyConfiguration')}}
               .body-2.ml-3(v-if='!strategy.config || strategy.config.length < 1'): em {{$t('admin:auth.strategyNoConfiguration')}}
               template(v-else, v-for='cfg in strategy.config')
-                v-select(
+                v-select.mb-3(
                   v-if='cfg.value.type === "string" && cfg.value.enum'
                   outlined
                   :items='cfg.value.enum'
                   :key='cfg.key'
                   :label='cfg.value.title'
                   v-model='cfg.value.value'
-                  prepend-icon='mdi-settings-box'
+                  prepend-icon='mdi-cog-box'
                   :hint='cfg.value.hint ? cfg.value.hint : ""'
                   persistent-hint
                   :class='cfg.value.hint ? "mb-2" : ""'
+                  :style='cfg.value.maxWidth > 0 ? `max-width:` + cfg.value.maxWidth + `px;` : ``'
                 )
-                v-switch.mb-3(
+                v-switch.mb-6(
                   v-else-if='cfg.value.type === "boolean"'
                   :key='cfg.key'
                   :label='cfg.value.title'
                   v-model='cfg.value.value'
                   color='primary'
-                  prepend-icon='mdi-settings-box'
+                  prepend-icon='mdi-cog-box'
                   :hint='cfg.value.hint ? cfg.value.hint : ""'
                   persistent-hint
+                  inset
                   )
-                v-textarea(
+                v-textarea.mb-3(
                   v-else-if='cfg.value.type === "string" && cfg.value.multiline'
                   outlined
                   :key='cfg.key'
                   :label='cfg.value.title'
                   v-model='cfg.value.value'
-                  prepend-icon='mdi-settings-box'
+                  prepend-icon='mdi-cog-box'
                   :hint='cfg.value.hint ? cfg.value.hint : ""'
                   persistent-hint
                   :class='cfg.value.hint ? "mb-2" : ""'
                   )
-                v-text-field(
+                v-text-field.mb-3(
                   v-else
                   outlined
                   :key='cfg.key'
                   :label='cfg.value.title'
                   v-model='cfg.value.value'
-                  prepend-icon='mdi-settings-box'
+                  prepend-icon='mdi-cog-box'
                   :hint='cfg.value.hint ? cfg.value.hint : ""'
                   persistent-hint
                   :class='cfg.value.hint ? "mb-2" : ""'
+                  :style='cfg.value.maxWidth > 0 ? `max-width:` + cfg.value.maxWidth + `px;` : ``'
                   )
               v-divider.mt-3
               .overline.my-5 {{$t('admin:auth.registration')}}
@@ -136,15 +150,7 @@
                   color='primary'
                   :hint='$t(`admin:auth.selfRegistrationHint`)'
                   persistent-hint
-                )
-                v-switch.ml-3(
-                  v-if='strategy.key === `local`'
-                  :disabled='!strategy.selfRegistration || true'
-                  v-model='strategy.recaptcha'
-                  label='Use reCAPTCHA by Google'
-                  color='primary'
-                  hint='Protects against spam robots and malicious registrations.'
-                  persistent-hint
+                  inset
                 )
                 v-combobox.ml-3.mt-3(
                   :label='$t(`admin:auth.domainsWhitelist`)'
@@ -179,7 +185,19 @@
                   )
               template(v-if='strategy.useForm')
                 v-divider.mt-3
-                .overline.my-5 {{$t('admin:auth.security')}}
+                .d-flex.my-5.align-center
+                  .overline {{$t('admin:auth.security')}}
+                  v-chip.ml-3.grey--text(outlined, small, label) Coming soon
+                v-switch.ml-3(
+                  v-if='strategy.key === `local`'
+                  :disabled='!strategy.selfRegistration || true'
+                  v-model='strategy.recaptcha'
+                  label='Use reCAPTCHA by Google'
+                  color='primary'
+                  hint='Protects against spam robots and malicious registrations.'
+                  persistent-hint
+                  inset
+                )
                 v-switch.ml-3(
                   v-model='strategy.recaptcha'
                   :disabled='true'
@@ -187,9 +205,10 @@
                   color='primary'
                   :hint='$t(`admin:auth.force2faHint`)'
                   persistent-hint
+                  inset
                 )
 
-        v-card.mt-4.wiki-form.animated.fadeInUp.wait-p4s
+        v-card.mt-4.wiki-form.animated.fadeInUp.wait-p4s(v-if='selectedStrategy !== `local`')
           v-toolbar(color='primary', dense, flat, dark)
             .subtitle-1 {{$t('admin:auth.configReference')}}
           v-card-text
@@ -198,7 +217,7 @@
               i18next(path='admin:auth.siteUrlNotSetup', tag='span')
                 strong(place='siteUrl') {{$t('admin:general.siteUrl')}}
                 strong(place='general') {{$t('admin:general.title')}}
-            .pa-3.mt-3.radius-7.grey(v-else, :class='$vuetify.dark ? `darken-3-d5` : `lighten-3`')
+            .pa-3.mt-3.radius-7.grey(v-else, :class='$vuetify.theme.dark ? `darken-3-d5` : `lighten-3`')
               .body-2: strong {{$t('admin:auth.allowedWebOrigins')}}
               .body-2 {{host}}
               v-divider.my-3

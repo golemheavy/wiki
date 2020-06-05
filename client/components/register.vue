@@ -16,14 +16,14 @@
                   v-spacer
                   .subheading {{ $t('auth:registerTitle') }}
                   v-spacer
-                v-card-text.text-xs-center
+                v-card-text.text-center
                   h1.display-1.indigo--text.py-2 {{ siteTitle }}
                   .body-2 {{ $t('auth:registerSubTitle') }}
                   v-text-field.md2.mt-3(
                     solo
                     flat
-                    prepend-icon='email'
-                    background-color='grey lighten-4'
+                    prepend-icon='mdi-email'
+                    :background-color='$vuetify.theme.dark ? `grey darken-3` : `grey lighten-4`'
                     hide-details
                     ref='iptEmail'
                     v-model='email'
@@ -33,11 +33,11 @@
                   v-text-field.md2.mt-2(
                     solo
                     flat
-                    prepend-icon='vpn_key'
-                    background-color='grey lighten-4'
+                    prepend-icon='mdi-textbox-password'
+                    :background-color='$vuetify.theme.dark ? `grey darken-3` : `grey lighten-4`'
                     ref='iptPassword'
                     v-model='password'
-                    :append-icon='hidePassword ? "visibility" : "visibility_off"'
+                    :append-icon='hidePassword ? "mdi-eye-off" : "mdi-eye"'
                     @click:append='() => (hidePassword = !hidePassword)'
                     :type='hidePassword ? "password" : "text"'
                     :placeholder='$t("auth:fields.password")'
@@ -49,8 +49,8 @@
                   v-text-field.md2.mt-2(
                     solo
                     flat
-                    prepend-icon='vpn_key'
-                    background-color='grey lighten-4'
+                    prepend-icon='mdi-textbox-password'
+                    :background-color='$vuetify.theme.dark ? `grey darken-3` : `grey lighten-4`'
                     hide-details
                     ref='iptVerifyPassword'
                     v-model='verifyPassword'
@@ -62,8 +62,8 @@
                   v-text-field.md2.mt-2(
                     solo
                     flat
-                    prepend-icon='person'
-                    background-color='grey lighten-4'
+                    prepend-icon='mdi-account'
+                    :background-color='$vuetify.theme.dark ? `grey darken-3` : `grey lighten-4`'
                     ref='iptName'
                     v-model='name'
                     :placeholder='$t("auth:fields.name")'
@@ -74,24 +74,25 @@
                 v-card-actions.pb-4
                   v-spacer
                   v-btn.md2(
-                    block
+                    width='100%'
+                    max-width='250px'
                     large
                     dark
                     color='indigo'
                     @click='register'
-                    round
+                    rounded
                     :loading='isLoading'
                     ) {{ $t('auth:actions.register') }}
                   v-spacer
                 v-divider
-                v-card-actions.py-3.grey.lighten-4
+                v-card-actions.py-3.grey(:class='$vuetify.theme.dark ? `darken-4-l1` : `lighten-4`')
                   v-spacer
                   i18next.caption(path='auth:switchToLogin.text', tag='div')
                     a.caption(href='/login', place='link') {{ $t('auth:switchToLogin.link') }}
                   v-spacer
 
     loader(v-model='isLoading', :mode='loaderMode', :icon='loaderIcon', :color='loaderColor', :title='loaderTitle', :subtitle='loaderSubtitle')
-    nav-footer(color='grey darken-4', dark-color='grey darken-4')
+    nav-footer(color='grey darken-5', dark-color='grey darken-5')
     notify
 </template>
 

@@ -109,61 +109,61 @@
       .editor-markdown-sidebar
         v-tooltip(right, color='teal')
           template(v-slot:activator='{ on }')
-            v-btn.animated.fadeInLeft(icon, tile, v-on='on', dark, disabled).mx-0
+            v-btn.animated.fadeInLeft(icon, tile, v-on='on', dark, @click='insertLink').mx-0
               v-icon mdi-link-plus
           span {{$t('editor:markup.insertLink')}}
         v-tooltip(right, color='teal')
           template(v-slot:activator='{ on }')
-            v-btn.animated.fadeInLeft.wait-p1s(icon, tile, v-on='on', dark, @click='toggleModal(`editorModalMedia`)').mx-0
+            v-btn.mt-3.animated.fadeInLeft.wait-p1s(icon, tile, v-on='on', dark, @click='toggleModal(`editorModalMedia`)').mx-0
               v-icon(:color='activeModal === `editorModalMedia` ? `teal` : ``') mdi-folder-multiple-image
           span {{$t('editor:markup.insertAssets')}}
         v-tooltip(right, color='teal')
           template(v-slot:activator='{ on }')
-            v-btn.animated.fadeInLeft.wait-p2s(icon, tile, v-on='on', dark, @click='toggleModal(`editorModalBlocks`)').mx-0
+            v-btn.mt-3.animated.fadeInLeft.wait-p2s(icon, tile, v-on='on', dark, disabled, @click='toggleModal(`editorModalBlocks`)').mx-0
               v-icon(:color='activeModal === `editorModalBlocks` ? `teal` : ``') mdi-view-dashboard-outline
           span {{$t('editor:markup.insertBlock')}}
         v-tooltip(right, color='teal')
           template(v-slot:activator='{ on }')
-            v-btn.animated.fadeInLeft.wait-p3s(icon, tile, v-on='on', dark, disabled).mx-0
+            v-btn.mt-3.animated.fadeInLeft.wait-p3s(icon, tile, v-on='on', dark, disabled).mx-0
               v-icon mdi-code-braces
           span {{$t('editor:markup.insertCodeBlock')}}
         v-tooltip(right, color='teal')
           template(v-slot:activator='{ on }')
-            v-btn.animated.fadeInLeft.wait-p4s(icon, tile, v-on='on', dark, disabled).mx-0
-              v-icon mdi-library-video
+            v-btn.mt-3.animated.fadeInLeft.wait-p4s(icon, tile, v-on='on', dark, disabled).mx-0
+              v-icon mdi-movie
           span {{$t('editor:markup.insertVideoAudio')}}
         v-tooltip(right, color='teal')
           template(v-slot:activator='{ on }')
-            v-btn.animated.fadeInLeft.wait-p5s(icon, tile, v-on='on', dark, disabled).mx-0
+            v-btn.mt-3.animated.fadeInLeft.wait-p5s(icon, tile, v-on='on', dark, disabled).mx-0
               v-icon mdi-chart-multiline
           span {{$t('editor:markup.insertDiagram')}}
         v-tooltip(right, color='teal')
           template(v-slot:activator='{ on }')
-            v-btn.animated.fadeInLeft.wait-p6s(icon, tile, v-on='on', dark, disabled).mx-0
+            v-btn.mt-3.animated.fadeInLeft.wait-p6s(icon, tile, v-on='on', dark, disabled).mx-0
               v-icon mdi-function-variant
           span {{$t('editor:markup.insertMathExpression')}}
         v-tooltip(right, color='teal')
           template(v-slot:activator='{ on }')
-            v-btn.animated.fadeInLeft.wait-p7s(icon, tile, v-on='on', dark, disabled).mx-0
+            v-btn.mt-3.animated.fadeInLeft.wait-p7s(icon, tile, v-on='on', dark, disabled).mx-0
               v-icon mdi-table-plus
           span {{$t('editor:markup.tableHelper')}}
         template(v-if='$vuetify.breakpoint.mdAndUp')
           v-spacer
           v-tooltip(right, color='teal')
             template(v-slot:activator='{ on }')
-              v-btn.animated.fadeInLeft.wait-p8s(icon, tile, v-on='on', dark, @click='toggleFullscreen').mx-0
+              v-btn.mt-3.animated.fadeInLeft.wait-p8s(icon, tile, v-on='on', dark, @click='toggleFullscreen').mx-0
                 v-icon mdi-arrow-expand-all
             span {{$t('editor:markup.distractionFreeMode')}}
           v-tooltip(right, color='teal')
             template(v-slot:activator='{ on }')
-              v-btn.animated.fadeInLeft.wait-p9s(icon, tile, v-on='on', dark, @click='toggleHelp').mx-0
+              v-btn.mt-3.animated.fadeInLeft.wait-p9s(icon, tile, v-on='on', dark, @click='toggleHelp').mx-0
                 v-icon(:color='helpShown ? `teal` : ``') mdi-help-circle
             span {{$t('editor:markup.markdownFormattingHelp')}}
       .editor-markdown-editor
-        codemirror(ref='cm', v-model='code', :options='cmOptions', @ready='onCmReady', @input='onCmInput')
+        textarea(ref='cm')
       transition(name='editor-markdown-preview')
         .editor-markdown-preview(v-if='previewShown')
-          .editor-markdown-preview-content.contents
+          .editor-markdown-preview-content.contents(ref='editorPreviewContainer')
             div(ref='editorPreview', v-html='previewHTML')
 
     v-system-bar.editor-markdown-sysbar(dark, status, color='grey darken-3')
@@ -176,19 +176,24 @@
         .caption Ln {{cursorPos.line + 1}}, Col {{cursorPos.ch + 1}}
 
     markdown-help(v-if='helpShown')
+    page-selector(mode='select', v-model='insertLinkDialog', :open-handler='insertLinkHandler', :path='path', :locale='locale')
 </template>
 
 <script>
 import _ from 'lodash'
 import { get, sync } from 'vuex-pathify'
 import markdownHelp from './markdown/help.vue'
+import gql from 'graphql-tag'
+import DOMPurify from 'dompurify'
+
+/* global siteConfig, siteLangs */
 
 // ========================================
 // IMPORTS
 // ========================================
 
 // Code Mirror
-import { codemirror } from 'vue-codemirror'
+import CodeMirror from 'codemirror'
 import 'codemirror/lib/codemirror.css'
 
 // Language
@@ -200,6 +205,7 @@ import 'codemirror/addon/display/fullscreen.js'
 import 'codemirror/addon/display/fullscreen.css'
 import 'codemirror/addon/selection/mark-selection.js'
 import 'codemirror/addon/search/searchcursor.js'
+import 'codemirror/addon/hint/show-hint.js'
 
 // Markdown-it
 import MarkdownIt from 'markdown-it'
@@ -211,10 +217,21 @@ import mdAbbr from 'markdown-it-abbr'
 import mdSup from 'markdown-it-sup'
 import mdSub from 'markdown-it-sub'
 import mdMark from 'markdown-it-mark'
+import mdFootnote from 'markdown-it-footnote'
 import mdImsize from 'markdown-it-imsize'
+import katex from 'katex'
+import 'katex/dist/contrib/mhchem'
+import twemoji from 'twemoji'
+import plantuml from './markdown/plantuml'
 
 // Prism (Syntax Highlighting)
 import Prism from 'prismjs'
+
+// Mermaid
+import mermaid from 'mermaid'
+
+// Helpers
+import katexHelper from './common/katex'
 
 // ========================================
 // INIT
@@ -223,6 +240,17 @@ import Prism from 'prismjs'
 // Platform detection
 const CtrlKey = /Mac/.test(navigator.platform) ? 'Cmd' : 'Ctrl'
 
+// Prism Config
+Prism.plugins.autoloader.languages_path = '/_assets/js/prism/'
+Prism.plugins.NormalizeWhitespace.setDefaults({
+  'remove-trailing': true,
+  'remove-indent': true,
+  'left-trim': true,
+  'right-trim': true,
+  'remove-initial-line-feed': true,
+  'tabs-to-spaces': 2
+})
+
 // Markdown Instance
 const md = new MarkdownIt({
   html: true,
@@ -230,10 +258,16 @@ const md = new MarkdownIt({
   linkify: true,
   typography: true,
   highlight(str, lang) {
-    return `<pre class="line-numbers"><code class="language-${lang}">${str}</code></pre>`
+    if (['mermaid', 'plantuml'].includes(lang)) {
+      return `<pre class="codeblock-${lang}"><code>${_.escape(str)}</code></pre>`
+    } else {
+      return `<pre class="line-numbers"><code class="language-${lang}">${_.escape(str)}</code></pre>`
+    }
   }
 })
-  .use(mdAttrs)
+  .use(mdAttrs, {
+    allowedAttributes: ['id', 'class', 'target']
+  })
   .use(mdEmoji)
   .use(mdTaskLists, {label: true, labelAfter: true})
   .use(mdExpandTabs)
@@ -241,6 +275,7 @@ const md = new MarkdownIt({
   .use(mdSup)
   .use(mdSub)
   .use(mdMark)
+  .use(mdFootnote)
   .use(mdImsize)
 
 // ========================================
@@ -261,14 +296,64 @@ function injectLineNumbers (tokens, idx, options, env, slf) {
 }
 md.renderer.rules.paragraph_open = injectLineNumbers
 md.renderer.rules.heading_open = injectLineNumbers
+md.renderer.rules.blockquote_open = injectLineNumbers
+
+// ========================================
+// PLANTUML
+// ========================================
+
+// TODO: Use same options as defined in backend
+plantuml.init(md, {})
+
+// ========================================
+// KATEX
+// ========================================
+
+md.inline.ruler.after('escape', 'katex_inline', katexHelper.katexInline)
+md.renderer.rules.katex_inline = (tokens, idx) => {
+  try {
+    return katex.renderToString(tokens[idx].content, {
+      displayMode: false
+    })
+  } catch (err) {
+    console.warn(err)
+    return tokens[idx].content
+  }
+}
+md.block.ruler.after('blockquote', 'katex_block', katexHelper.katexBlock, {
+  alt: [ 'paragraph', 'reference', 'blockquote', 'list' ]
+})
+md.renderer.rules.katex_block = (tokens, idx) => {
+  try {
+    return `<p>` + katex.renderToString(tokens[idx].content, {
+      displayMode: true
+    }) + `</p>`
+  } catch (err) {
+    console.warn(err)
+    return tokens[idx].content
+  }
+}
+
+// ========================================
+// TWEMOJI
+// ========================================
+
+md.renderer.rules.emoji = (token, idx) => {
+  return twemoji.parse(token[idx].content, {
+    callback (icon, opts) {
+      return `/_assets/svg/twemoji/${icon}.svg`
+    }
+  })
+}
 
 // ========================================
 // Vue Component
 // ========================================
 
+let mermaidId = 0
+
 export default {
   components: {
-    codemirror,
     markdownHelp
   },
   props: {
@@ -280,32 +365,15 @@ export default {
   data() {
     return {
       fabInsertMenu: false,
-      code: this.$store.get('editor/content'),
-      cmOptions: {
-        tabSize: 2,
-        mode: 'text/markdown',
-        theme: 'wikijs-dark',
-        lineNumbers: true,
-        lineWrapping: true,
-        line: true,
-        styleActiveLine: true,
-        highlightSelectionMatches: {
-          annotateScrollbar: true
-        },
-        viewportMargin: 50,
-        inputStyle: 'contenteditable',
-        allowDropFileTypes: ['image/jpg', 'image/png', 'image/svg', 'image/jpeg', 'image/gif']
-      },
+      cm: null,
       cursorPos: { ch: 0, line: 1 },
       previewShown: true,
       previewHTML: '',
-      helpShown: false
+      helpShown: false,
+      insertLinkDialog: false
     }
   },
   computed: {
-    cm() {
-      return this.$refs.cm.codemirror
-    },
     isMobile() {
       return this.$vuetify.breakpoint.smAndDown
     },
@@ -314,7 +382,19 @@ export default {
     },
     locale: get('page/locale'),
     path: get('page/path'),
+    mode: get('editor/mode'),
     activeModal: sync('editor/activeModal')
+  },
+  watch: {
+    previewShown (newValue, oldValue) {
+      if (newValue && !oldValue) {
+        this.$nextTick(() => {
+          this.renderMermaidDiagrams()
+          Prism.highlightAllUnder(this.$refs.editorPreview)
+          Array.from(this.$refs.editorPreview.querySelectorAll('pre.line-numbers')).forEach(pre => pre.classList.add('prismjs'))
+        })
+      }
+    }
   },
   methods: {
     toggleModal(key) {
@@ -325,79 +405,33 @@ export default {
       this.activeModal = ''
       this.helpShown = false
     },
-    onCmReady(cm) {
-      const keyBindings = {
-        'F11' (cm) {
-          cm.setOption('fullScreen', !cm.getOption('fullScreen'))
-        },
-        'Esc' (cm) {
-          if (cm.getOption('fullScreen')) cm.setOption('fullScreen', false)
-        }
-      }
-      _.set(keyBindings, `${CtrlKey}-S`, cm => {
-        this.save()
-        return false
-      })
-      _.set(keyBindings, `${CtrlKey}-B`, cm => {
-        this.toggleMarkup({ start: `**` })
-        return false
-      })
-      _.set(keyBindings, `${CtrlKey}-I`, cm => {
-        this.toggleMarkup({ start: `*` })
-        return false
-      })
-      _.set(keyBindings, `${CtrlKey}-Alt-Right`, cm => {
-        let lvl = this.getHeaderLevel(cm)
-        if (lvl >= 6) { lvl = 5 }
-        this.setHeaderLine(lvl + 1)
-        return false
-      })
-      _.set(keyBindings, `${CtrlKey}-Alt-Left`, cm => {
-        let lvl = this.getHeaderLevel(cm)
-        if (lvl <= 1) { lvl = 2 }
-        this.setHeaderLine(lvl - 1)
-        return false
-      })
-
-      if (this.$vuetify.breakpoint.mdAndUp) {
-        cm.setSize(null, 'calc(100vh - 112px - 24px)')
-      } else {
-        cm.setSize(null, 'calc(100vh - 112px - 16px)')
-      }
-      cm.setOption('extraKeys', keyBindings)
-      cm.on('cursorActivity', cm => {
-        this.positionSync(cm)
-        this.scrollSync(cm)
-      })
-      cm.on('paste', this.onCmPaste)
-      this.onCmInput(this.code)
-    },
     onCmInput: _.debounce(function (newContent) {
       linesMap = []
       this.$store.set('editor/content', newContent)
-      this.previewHTML = md.render(newContent)
+      this.previewHTML = DOMPurify.sanitize(md.render(newContent))
       this.$nextTick(() => {
+        this.renderMermaidDiagrams()
         Prism.highlightAllUnder(this.$refs.editorPreview)
         Array.from(this.$refs.editorPreview.querySelectorAll('pre.line-numbers')).forEach(pre => pre.classList.add('prismjs'))
         this.scrollSync(this.cm)
       })
     }, 500),
     onCmPaste (cm, ev) {
-      const clipItems = (ev.clipboardData || ev.originalEvent.clipboardData).items
-      for (const clipItem of clipItems) {
-        if (_.startsWith(clipItem.type, 'image/')) {
-          const file = clipItem.getAsFile()
-          const reader = new FileReader()
-          reader.onload = evt => {
-            this.$store.commit(`loadingStart`, 'editor-paste-image')
-            this.insertAfter({
-              content: `![${file.name}](${evt.target.result})`,
-              newLine: true
-            })
-          }
-          reader.readAsDataURL(file)
-        }
-      }
+      // const clipItems = (ev.clipboardData || ev.originalEvent.clipboardData).items
+      // for (let clipItem of clipItems) {
+      //   if (_.startsWith(clipItem.type, 'image/')) {
+      //     const file = clipItem.getAsFile()
+      //     const reader = new FileReader()
+      //     reader.onload = evt => {
+      //       this.$store.commit(`loadingStart`, 'editor-paste-image')
+      //       this.insertAfter({
+      //         content: `![${file.name}](${evt.target.result})`,
+      //         newLine: true
+      //       })
+      //     }
+      //     reader.readAsDataURL(file)
+      //   }
+      // }
     },
     /**
      * Update cursor state
@@ -497,13 +531,13 @@ export default {
       let currentLine = cm.getCursor().line
       if (currentLine < 3) {
         this.Velocity(this.$refs.editorPreview, 'stop', true)
-        this.Velocity(this.$refs.editorPreview.firstChild, 'scroll', { offset: '-50', duration: 1000, container: this.$refs.editorPreview })
+        this.Velocity(this.$refs.editorPreview.firstChild, 'scroll', { offset: '-50', duration: 1000, container: this.$refs.editorPreviewContainer })
       } else {
         let closestLine = _.findLast(linesMap, n => n <= currentLine)
         let destElm = this.$refs.editorPreview.querySelector(`[data-line='${closestLine}']`)
         if (destElm) {
           this.Velocity(this.$refs.editorPreview, 'stop', true)
-          this.Velocity(destElm, 'scroll', { offset: '-100', duration: 1000, container: this.$refs.editorPreview })
+          this.Velocity(destElm, 'scroll', { offset: '-100', duration: 1000, container: this.$refs.editorPreviewContainer })
         }
       }
     }, 500),
@@ -513,9 +547,184 @@ export default {
     },
     toggleFullscreen () {
       this.cm.setOption('fullScreen', true)
+    },
+    refresh() {
+      this.$nextTick(() => {
+        this.cm.refresh()
+      })
+    },
+    renderMermaidDiagrams () {
+      document.querySelectorAll('.editor-markdown-preview pre.codeblock-mermaid > code').forEach(elm => {
+        mermaidId++
+        const mermaidDef = elm.innerText
+        const mmElm = document.createElement('div')
+        mmElm.innerHTML = `<div id="mermaid-id-${mermaidId}">${mermaid.render(`mermaid-id-${mermaidId}`, mermaidDef)}</div>`
+        elm.parentElement.replaceWith(mmElm)
+      })
+    },
+    autocomplete (cm, change) {
+      if (cm.getModeAt(cm.getCursor()).name !== 'markdown') {
+        return
+      }
+
+      // Links
+      if (change.text[0] === '(') {
+        const curLine = cm.getLine(change.from.line).substring(0, change.from.ch)
+        if (curLine[curLine.length - 1] === ']') {
+          cm.showHint({
+            hint: async (cm, options) => {
+              const cur = cm.getCursor()
+              const token = cm.getTokenAt(cur)
+              try {
+                const respRaw = await this.$apollo.query({
+                  query: gql`
+                    query ($query: String!, $locale: String) {
+                      pages {
+                        search(query:$query, locale:$locale) {
+                          results {
+                            title
+                            path
+                            locale
+                          }
+                          totalHits
+                        }
+                      }
+                    }
+                  `,
+                  variables: {
+                    query: token.string,
+                    locale: this.locale
+                  },
+                  fetchPolicy: 'cache-first'
+                })
+                const resp = _.get(respRaw, 'data.pages.search', {})
+                if (resp && resp.totalHits > 0) {
+                  return {
+                    list: resp.results.map(r => ({
+                      text: (siteLangs.length > 0 ? `/${r.locale}/${r.path}` : `/${r.path}`) + ')',
+                      displayText: siteLangs.length > 0 ? `/${r.locale}/${r.path} - ${r.title}` : `/${r.path} - ${r.title}`
+                    })),
+                    from: CodeMirror.Pos(cur.line, token.start),
+                    to: CodeMirror.Pos(cur.line, token.end)
+                  }
+                }
+              } catch (err) {}
+              return {
+                list: [],
+                from: CodeMirror.Pos(cur.line, token.start),
+                to: CodeMirror.Pos(cur.line, token.end)
+              }
+            }
+          })
+        }
+      }
+    },
+    insertLink () {
+      this.insertLinkDialog = true
+    },
+    insertLinkHandler ({ locale, path }) {
+      const lastPart = _.last(path.split('/'))
+      this.insertAtCursor({
+        content: siteLangs.length > 0 ? `[${lastPart}](/${locale}/${path})` : `[${lastPart}](/${path})`
+      })
     }
   },
   mounted() {
+    this.$store.set('editor/editorKey', 'markdown')
+
+    if (this.mode === 'create' && !this.$store.get('editor/content')) {
+      this.$store.set('editor/content', '# Header\nYour content here')
+    }
+
+    // Initialize Mermaid API
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: this.$vuetify.theme.dark ? `dark` : `default`
+    })
+
+    // Initialize CodeMirror
+
+    this.cm = CodeMirror.fromTextArea(this.$refs.cm, {
+      tabSize: 2,
+      mode: 'text/markdown',
+      theme: 'wikijs-dark',
+      lineNumbers: true,
+      lineWrapping: true,
+      line: true,
+      styleActiveLine: true,
+      highlightSelectionMatches: {
+        annotateScrollbar: true
+      },
+      viewportMargin: 50,
+      inputStyle: 'contenteditable',
+      allowDropFileTypes: ['image/jpg', 'image/png', 'image/svg', 'image/jpeg', 'image/gif'],
+      direction: siteConfig.rtl ? 'rtl' : 'ltr'
+    })
+    this.cm.setValue(this.$store.get('editor/content'))
+    this.cm.on('change', c => {
+      this.$store.set('editor/content', c.getValue())
+      this.onCmInput(this.$store.get('editor/content'))
+    })
+    if (this.$vuetify.breakpoint.mdAndUp) {
+      this.cm.setSize(null, 'calc(100vh - 112px - 24px)')
+    } else {
+      this.cm.setSize(null, 'calc(100vh - 112px - 16px)')
+    }
+
+    // Set Keybindings
+
+    const keyBindings = {
+      'F11' (c) {
+        c.setOption('fullScreen', !c.getOption('fullScreen'))
+      },
+      'Esc' (c) {
+        if (c.getOption('fullScreen')) c.setOption('fullScreen', false)
+      }
+    }
+    _.set(keyBindings, `${CtrlKey}-S`, c => {
+      this.save()
+      return false
+    })
+    _.set(keyBindings, `${CtrlKey}-B`, c => {
+      this.toggleMarkup({ start: `**` })
+      return false
+    })
+    _.set(keyBindings, `${CtrlKey}-I`, c => {
+      this.toggleMarkup({ start: `*` })
+      return false
+    })
+    _.set(keyBindings, `${CtrlKey}-Alt-Right`, c => {
+      let lvl = this.getHeaderLevel(c)
+      if (lvl >= 6) { lvl = 5 }
+      this.setHeaderLine(lvl + 1)
+      return false
+    })
+    _.set(keyBindings, `${CtrlKey}-Alt-Left`, c => {
+      let lvl = this.getHeaderLevel(c)
+      if (lvl <= 1) { lvl = 2 }
+      this.setHeaderLine(lvl - 1)
+      return false
+    })
+    this.cm.setOption('extraKeys', keyBindings)
+
+    this.cm.on('inputRead', this.autocomplete)
+
+    // Handle cursor movement
+
+    this.cm.on('cursorActivity', c => {
+      this.positionSync(c)
+      this.scrollSync(c)
+    })
+
+    // Handle special paste
+
+    this.cm.on('paste', this.onCmPaste)
+
+    // Render initial preview
+
+    this.onCmInput(this.$store.get('editor/content'))
+    this.refresh()
+
     this.$root.$on('editorInsert', opts => {
       switch (opts.kind) {
         case 'IMAGE':
@@ -533,6 +742,14 @@ export default {
           })
           break
       }
+    })
+
+    // Handle save conflict
+    this.$root.$on('saveConflict', () => {
+      this.toggleModal(`editorModalConflict`)
+    })
+    this.$root.$on('overwriteEditorContent', () => {
+      this.cm.setValue(this.$store.get('editor/content'))
     })
   },
   beforeDestroy() {
@@ -570,6 +787,7 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
     position: relative;
     height: $editor-height;
     overflow: hidden;
+    padding: 1rem;
 
     @at-root .theme--dark & {
       background-color: mc('grey', '900');
@@ -595,8 +813,8 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
     &-content {
       height: $editor-height;
       overflow-y: scroll;
-      padding: 1rem 1rem 1rem 1rem;
-      width: calc(100% + 1rem + 17px);
+      padding: 0;
+      width: calc(100% + 17px);
       // -ms-overflow-style: none;
 
       // &::-webkit-scrollbar {
@@ -606,6 +824,10 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
 
       @include until($tablet) {
         height: $editor-height-mobile;
+      }
+
+      p.line {
+        overflow-wrap: break-word;
       }
     }
   }
@@ -674,6 +896,8 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
 
   .CodeMirror {
     height: auto;
+    font-family: 'Roboto Mono', monospace;
+    font-size: .9rem;
 
     .cm-header-1 {
       font-size: 1.5rem;
@@ -693,6 +917,10 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
     .cm-header-6 {
       font-size: 1.025rem;
     }
+  }
+
+  .CodeMirror-wrap pre.CodeMirror-line, .CodeMirror-wrap pre.CodeMirror-line-like {
+    word-break: break-word;
   }
 
   .CodeMirror-focused .cm-matchhighlight {
@@ -718,10 +946,10 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
     background: mc('blue','800');
   }
   .cm-s-wikijs-dark .CodeMirror-line::selection, .cm-s-wikijs-dark .CodeMirror-line > span::selection, .cm-s-wikijs-dark .CodeMirror-line > span > span::selection {
-    background: mc('red', '500');
+    background: mc('amber', '500');
   }
   .cm-s-wikijs-dark .CodeMirror-line::-moz-selection, .cm-s-wikijs-dark .CodeMirror-line > span::-moz-selection, .cm-s-wikijs-dark .CodeMirror-line > span > span::-moz-selection {
-    background: mc('red', '500');
+    background: mc('amber', '500');
   }
   .cm-s-wikijs-dark .CodeMirror-gutters {
     background: darken(mc('grey','900'), 6%);
@@ -786,6 +1014,43 @@ $editor-height-mobile: calc(100vh - 112px - 16px);
     text-decoration: underline;
     color: white !important;
   }
+}
 
+// HINT DROPDOWN
+
+.CodeMirror-hints {
+  position: absolute;
+  z-index: 10;
+  overflow: hidden;
+  list-style: none;
+
+  margin: 0;
+  padding: 1px;
+
+  box-shadow: 2px 3px 5px rgba(0,0,0,.2);
+  border: 1px solid mc('grey', '700');
+
+  background: mc('grey', '900');
+  font-family: 'Roboto Mono', monospace;
+  font-size: .9rem;
+
+  max-height: 150px;
+  overflow-y: auto;
+
+  min-width: 250px;
+  max-width: 80vw;
+}
+
+.CodeMirror-hint {
+  margin: 0;
+  padding: 0 4px;
+  white-space: pre;
+  color: #FFF;
+  cursor: pointer;
+}
+
+li.CodeMirror-hint-active {
+  background: mc('blue', '500');
+  color: #FFF;
 }
 </style>

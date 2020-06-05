@@ -3,70 +3,80 @@
     v-layout(row wrap)
       v-flex(xs12)
         .admin-header
-          img.animated.fadeInUp(src='/svg/icon-file.svg', alt='Page', style='width: 80px;')
+          img.animated.fadeInUp(src='/_assets/svg/icon-file.svg', alt='Page', style='width: 80px;')
           .admin-header-title
             .headline.blue--text.text--darken-2.animated.fadeInLeft Pages
             .subtitle-1.grey--text.animated.fadeInLeft.wait-p2s Manage pages
           v-spacer
-          v-btn.animated.fadeInDown.wait-p1s(color='grey', outlined, @click='refresh', large)
+          v-btn.animated.fadeInDown.wait-p1s(icon, color='grey', outlined, @click='refresh')
             v-icon.grey--text mdi-refresh
-          v-btn.animated.fadeInDown.mx-3(color='primary', outlined, large, @click='recyclebin', disabled)
+          v-btn.animated.fadeInDown.mx-3(color='primary', outlined, @click='recyclebin', disabled)
             v-icon(left) mdi-delete-outline
             span Recycle Bin
-          v-btn.animated.fadeInDown(color='primary', depressed, large, @click='newpage', disabled)
-            v-icon(left) mdi-plus
-            span New Page
-        v-card.wiki-form.mt-3.animated.fadeInUp
-          v-toolbar(flat, :color='$vuetify.dark ? `grey darken-3-d5` : `grey lighten-5`', height='80')
-            v-spacer
+          v-btn.animated.fadeInDown(color='primary', depressed, large, to='pages/visualize')
+            v-icon(left) mdi-graph
+            span Visualize
+        v-card.mt-3.animated.fadeInUp
+          .pa-2.d-flex.align-center(:class='$vuetify.theme.dark ? `grey darken-3-d5` : `grey lighten-3`')
             v-text-field(
-              outlined
+              solo
+              flat
               v-model='search'
               prepend-inner-icon='mdi-file-search-outline'
               label='Search Pages...'
               hide-details
+              dense
+              style='max-width: 400px;'
               )
+            v-spacer
             v-select.ml-2(
-              outlined
+              solo
+              flat
               hide-details
+              dense
               label='Locale'
               :items='langs'
               v-model='selectedLang'
+              style='max-width: 250px;'
             )
             v-select.ml-2(
-              outlined
+              solo
+              flat
               hide-details
+              dense
               label='Publish State'
               :items='states'
               v-model='selectedState'
+              style='max-width: 250px;'
             )
-            v-spacer
           v-divider
           v-data-table(
             :items='filteredPages'
             :headers='headers'
             :search='search'
-            :pagination.sync='pagination'
-            :rows-per-page-items='[15]'
+            :page.sync='pagination'
+            :items-per-page='15'
             :loading='loading'
             must-sort,
-            hide-actions
+            sort-by='updatedAt',
+            sort-desc,
+            hide-default-footer
           )
-            template(slot='items', slot-scope='props')
+            template(slot='item', slot-scope='props')
               tr.is-clickable(:active='props.selected', @click='$router.push(`/pages/` + props.item.id)')
                 td.text-xs-right {{ props.item.id }}
                 td
-                  .body-2 {{ props.item.title }}
+                  .body-2: strong {{ props.item.title }}
                   .caption {{ props.item.description }}
                 td.admin-pages-path
-                  v-chip(label, small, :color='$vuetify.dark ? `grey darken-4` : `grey lighten-4`') {{ props.item.locale }}
-                  span.ml-2.grey--text(:class='$vuetify.dark ? `text--lighten-1` : `text--darken-2`') {{ props.item.path }}
+                  v-chip(label, small, :color='$vuetify.theme.dark ? `grey darken-4` : `grey lighten-4`') {{ props.item.locale }}
+                  span.ml-2.grey--text(:class='$vuetify.theme.dark ? `text--lighten-1` : `text--darken-2`') / {{ props.item.path }}
                 td {{ props.item.createdAt | moment('calendar') }}
                 td {{ props.item.updatedAt | moment('calendar') }}
             template(slot='no-data')
-              v-alert.ma-3(icon='warning', :value='true', outline) No pages to display.
-          .text-xs-center.py-2.animated.fadeInDown(v-if='this.pageTotal > 1')
-            v-pagination(v-model='pagination.page', :length='pageTotal')
+              v-alert.ma-3(icon='mdi-alert', :value='true', outlined) No pages to display.
+          .text-center.py-2.animated.fadeInDown(v-if='this.pageTotal > 1')
+            v-pagination(v-model='pagination', :length='pageTotal')
 </template>
 
 <script>
@@ -77,10 +87,10 @@ export default {
   data() {
     return {
       selectedPage: {},
-      pagination: {},
+      pagination: 1,
       pages: [],
       headers: [
-        { text: 'ID', value: 'id', width: 50, align: 'right' },
+        { text: 'ID', value: 'id', width: 80, sortable: true },
         { text: 'Title', value: 'title' },
         { text: 'Path', value: 'path' },
         { text: 'Created', value: 'createdAt', width: 250 },
@@ -99,11 +109,7 @@ export default {
   },
   computed: {
     pageTotal () {
-      if (this.pagination.rowsPerPage == null || this.pagination.totalItems == null) {
-        return 0
-      }
-
-      return Math.ceil(this.filteredPages.length / this.pagination.rowsPerPage)
+      return Math.ceil(this.filteredPages.length / 15)
     },
     filteredPages () {
       return _.filter(this.pages, pg => {

@@ -4,15 +4,20 @@
       v-container
         v-layout
           v-flex(xs12, lg6, offset-lg3)
-            v-card.radius-7
+            v-card.elevation-20.radius-7.animated.fadeInUp
+              v-alert(v-if='isDevMode', tile, dark, color='red darken-3', icon='mdi-alert', prominent)
+                .body-2 You are running an unstable, unreleased development version. This code base is #[strong NOT] for production use!
+                .body-2.mt-3 Cloning the master branch directly from GitHub is #[strong NOT] the proper way to install Wiki.js!
+                .body-2 Read the #[a(href='https://docs.requarks.io/install', style='color: #FFF;') documentation] on correctly installing the latest stable version.
               .text-center
-                img.setup-logo(src='/svg/logo-wikijs.svg', alt='Wiki.js Logo')
-              v-alert(tile, color='indigo lighten-5', :value='true')
-                v-icon.mr-3(color='indigo') mdi-package-variant
-                span.indigo--text You are about to install Wiki.js #[strong {{wikiVersion}}].
+                img.setup-logo.animated.fadeInUp.wait-p2s(src='/_assets/svg/logo-wikijs-full.svg', alt='Wiki.js Logo')
+              v-alert(v-model='error', type='error', icon='mdi-alert', tile, dismissible) {{ errorMessage }}
+              v-alert(v-if='!error', tile, color='blue lighten-5', :value='true')
+                v-icon.mr-3(color='blue') mdi-package-variant
+                span.blue--text You are about to install Wiki.js #[strong {{wikiVersion}}].
               v-card-text
-                .overline.pl-3 Create Administrator Account
-                v-container.pa-3(grid-list-xl)
+                .overline.pl-3 Administrator Account
+                v-container.pa-3.mt-3(grid-list-xl)
                   v-layout(row, wrap)
                     v-flex(xs12)
                       v-text-field(
@@ -21,11 +26,7 @@
                         label='Administrator Email',
                         hint='The email address of the administrator account.',
                         persistent-hint
-                        v-validate='{ required: true, email: true }',
-                        data-vv-name='adminEmail',
-                        data-vv-as='Administrator Email',
-                        data-vv-scope='admin',
-                        :error-messages='errors.collect(`admin.adminEmail`)'
+                        required
                         ref='adminEmailInput'
                       )
                     v-flex(xs6)
@@ -40,11 +41,6 @@
                         :type="pwdMode ? 'password' : 'text'"
                         hint='At least 8 characters long.',
                         persistent-hint
-                        v-validate='{ required: true, min: 8 }',
-                        data-vv-name='adminPassword',
-                        data-vv-as='Password',
-                        data-vv-scope='admin',
-                        :error-messages='errors.collect(`admin.adminPassword`)'
                       )
                     v-flex(xs6)
                       v-text-field(
@@ -58,25 +54,32 @@
                         :type="pwdConfirmMode ? 'password' : 'text'"
                         hint='Verify your password again.',
                         persistent-hint
-                        v-validate='{ required: true, min: 8 }',
-                        data-vv-name='adminPasswordConfirm',
-                        data-vv-as='Confirm Password',
-                        data-vv-scope='admin',
-                        :error-messages='errors.collect(`admin.adminPasswordConfirm`)'
-                        @keyup.enter='install'
                       )
                 v-divider.mb-4
-                v-checkbox.ml-3(
+                .overline.pl-3.mb-5 Site URL
+                v-text-field.mb-4.mx-3(
+                  outlined
+                  ref='adminSiteUrl',
+                  v-model='conf.siteUrl',
+                  label='Site URL',
+                  hint='Full URL to your wiki, without the trailing slash (e.g. https://wiki.example.com). This should be the public facing URL, not the internal one if using a reverse-proxy.',
+                  persistent-hint
+                  @keyup.enter='install'
+                )
+                v-divider.mb-4
+                .overline.pl-3.mb-3 Telemetry
+                v-switch.ml-3(
+                  inset
                   color='primary',
                   v-model='conf.telemetry',
                   label='Allow Telemetry',
                   persistent-hint,
                   hint='Help Wiki.js developers improve this app with anonymized telemetry.'
                 )
-              v-alert(:value='error', type='error', icon='warning') {{ errorMessage }}
-              v-divider.mt-3(v-if='!error')
+                a.pl-3(style='font-size: 12px; letter-spacing: initial;', href='https://docs.requarks.io/telemetry', target='_blank') Learn more
+              v-divider.mt-2
               v-card-actions
-                v-btn(color='primary', @click='install', :disabled='loading', x-large, flat, block)
+                v-btn(color='primary', @click='install', :disabled='loading', x-large, depressed, block)
                   v-icon(left) mdi-check
                   span Install
 
@@ -98,9 +101,12 @@
 </template>
 
 <script>
-import axios from 'axios'
 import _ from 'lodash'
+import validate from 'validate.js'
 import { BreedingRhombusSpinner } from 'epic-spinners'
+import confetti from 'canvas-confetti'
+
+/* global siteConfig */
 
 export default {
   components: {
@@ -122,40 +128,98 @@ export default {
         adminEmail: '',
         adminPassword: '',
         adminPasswordConfirm: '',
+        siteUrl: 'https://wiki.yourdomain.com',
         telemetry: true
       },
       pwdMode: true,
-      pwdConfirmMode: true
+      pwdConfirmMode: true,
+      isDevMode: false
     }
   },
   mounted() {
     _.delay(() => {
       this.$refs.adminEmailInput.focus()
     }, 500)
+    this.isDevMode = siteConfig.devMode === true
   },
   methods: {
     async install () {
-      const validationSuccess = await this.$validator.validateAll('admin')
-      if (!validationSuccess || this.conf.adminPassword !== this.conf.adminPasswordConfirm) {
+      this.error = false
+
+      const validationResults = validate(this.conf, {
+        adminEmail: {
+          presence: {
+            allowEmpty: false
+          },
+          email: true
+        },
+        adminPassword: {
+          presence: {
+            allowEmpty: false
+          },
+          length: {
+            minimum: 6,
+            maximum: 255
+          }
+        },
+        adminPasswordConfirm: {
+          equality: 'adminPassword'
+        },
+        siteUrl: {
+          presence: {
+            allowEmpty: false
+          },
+          url: {
+            schemes: ['http', 'https'],
+            allowLocal: true,
+            allowDataUrl: false
+          },
+          format: {
+            pattern: '^(?!.*/$).*$',
+            flags: 'i',
+            message: 'must not have a trailing slash'
+          }
+        }
+      }, {
+        format: 'flat'
+      })
+      if (validationResults) {
+        this.error = true
+        this.errorMessage = validationResults[0]
+        this.$forceUpdate()
         return
       }
 
       this.loading = true
       this.success = false
-      this.error = false
       this.$forceUpdate()
 
       _.delay(async () => {
         try {
-          const resp = await axios.post('/finalize', this.conf)
-          if (resp.data.ok === true) {
-            this.success = true
+          const resp = await fetch('/finalize', {
+            method: 'POST',
+            cache: 'no-cache',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(this.conf)
+          }).then(res => res.json())
+
+          if (resp.ok === true) {
             _.delay(() => {
-              window.location.assign('/login')
-            }, 3000)
+              confetti({
+                particleCount: 100,
+                spread: 70,
+                zIndex: 100000
+              })
+              this.success = true
+              _.delay(() => {
+                window.location.assign('/login')
+              }, 3000)
+            }, 10000)
           } else {
             this.error = true
-            this.errorMessage = resp.data.error
+            this.errorMessage = resp.error
             this.loading = false
           }
         } catch (err) {
@@ -172,14 +236,38 @@ export default {
 .setup {
   .v-application--wrap {
     padding-top: 10vh;
-    background-color: darken(mc('grey', '900'), 5%);
-    background-image: url(/svg/motif-circuit.svg) !important;
-    background-repeat: repeat;
+    background-color: #111;
+    background-image: linear-gradient(45deg, mc('blue', '100'), mc('blue', '700'), mc('indigo', '900'));
+    background-blend-mode: exclusion;
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100vh;
+      z-index: 0;
+      background-color: transparent;
+      background-image: url(/_assets/svg/motif-grid.svg) !important;
+      background-size: 100px;
+      background-repeat: repeat;
+      animation: bg-anim 100s linear infinite;
+    }
+  }
+
+  @keyframes bg-anim {
+    0% {
+      background-position: 0 0;
+    }
+    100% {
+      background-position: 100% 100%;
+    }
   }
 
   &-logo {
-    width: 300px;
-    margin: 3rem 0 2rem 0;
+    width: 400px;
+    margin: 2rem 0 2rem 0;
   }
 }
 </style>

@@ -3,7 +3,7 @@
     v-layout(row wrap)
       v-flex(xs12)
         .admin-header
-          img.animated.fadeInUp(src='/svg/icon-paint-palette.svg', alt='Theme', style='width: 80px;')
+          img.animated.fadeInUp(src='/_assets/svg/icon-paint-palette.svg', alt='Theme', style='width: 80px;')
           .admin-header-title
             .headline.primary--text.animated.fadeInLeft {{$t('admin:theme.title')}}
             .subtitle-1.grey--text.animated.fadeInLeft.wait-p2s {{$t('admin:theme.subtitle')}}
@@ -14,7 +14,7 @@
         v-form.pt-3
           v-layout(row wrap)
             v-flex(lg6 xs12)
-              v-card.wiki-form.animated.fadeInUp
+              v-card.animated.fadeInUp
                 v-toolbar(color='primary', dark, dense, flat)
                   v-toolbar-title.subtitle-1 {{$t('admin:theme.title')}}
                 v-card-text
@@ -29,7 +29,7 @@
                     )
                     template(slot='item', slot-scope='data')
                       v-list-item-avatar
-                        v-icon.blue--text(dark) filter_frames
+                        v-icon.blue--text(dark) mdi-image-filter-frames
                       v-list-item-content
                         v-list-item-title(v-html='data.item.text')
                         v-list-item-sub-title(v-html='data.item.author')
@@ -44,6 +44,7 @@
                     )
                   v-divider.mt-3
                   v-switch(
+                    inset
                     v-model='darkMode'
                     :label='$t(`admin:theme.darkMode`)'
                     color='primary'
@@ -51,40 +52,23 @@
                     :hint='$t(`admin:theme.darkModeHint`)'
                     )
 
-              v-card.wiki-form.mt-3.animated.fadeInUp.wait-p2s
+              v-card.mt-3.animated.fadeInUp.wait-p1s
                 v-toolbar(color='primary', dark, dense, flat)
-                  v-toolbar-title.subtitle-1 {{$t(`admin:theme.codeInjection`)}}
+                  v-toolbar-title.subtitle-1 {{$t(`admin:theme.options`)}}
+                  v-spacer
+                  v-chip(label, color='white', small).primary--text coming soon
                 v-card-text
-                  v-textarea(
-                    v-model='config.injectCSS'
-                    :label='$t(`admin:theme.cssOverride`)'
+                  v-select(
+                    :items='[]'
                     outlined
-                    color='primary'
+                    prepend-icon='mdi-border-vertical'
+                    v-model='config.iconset'
+                    label='Table of Contents Position'
                     persistent-hint
-                    :hint='$t(`admin:theme.cssOverrideHint`)'
-                    auto-grow
+                    hint='Select whether the table of contents is shown on the left, right or not at all.'
+                    disabled
                     )
-                  i18next.caption.pl-2.ml-1(path='admin:theme.cssOverrideWarning', tag='div')
-                    strong.red--text(place='caution') {{$t('admin:theme.cssOverrideWarningCaution')}}
-                    code(place='cssClass') .contents
-                  v-textarea.mt-3(
-                    v-model='config.injectHead'
-                    :label='$t(`admin:theme.headHtmlInjection`)'
-                    outlined
-                    color='primary'
-                    persistent-hint
-                    :hint='$t(`admin:theme.headHtmlInjectionHint`)'
-                    auto-grow
-                    )
-                  v-textarea.mt-2(
-                    v-model='config.injectBody'
-                    :label='$t(`admin:theme.bodyHtmlInjection`)'
-                    outlined
-                    color='primary'
-                    persistent-hint
-                    :hint='$t(`admin:theme.bodyHtmlInjectionHint`)'
-                    auto-grow
-                    )
+
             v-flex(lg6 xs12)
               v-card.animated.fadeInUp.wait-p2s
                 v-toolbar(color='teal', dark, dense, flat)
@@ -98,7 +82,7 @@
                   item-key='value',
                   :items-per-page='1000'
                 )
-                  template(v-slot:items='thm')
+                  template(v-slot:item='thm')
                     td
                       strong {{thm.item.text}}
                     td
@@ -108,9 +92,44 @@
                       v-btn(v-else-if='thm.item.isInstalled && thm.item.installDate < thm.item.updatedAt', icon)
                         v-icon.blue--text mdi-cached
                       v-btn(v-else-if='thm.item.isInstalled', icon)
-                        v-icon.green--text mdi-check
+                        v-icon.green--text mdi-check-bold
                       v-btn(v-else, icon)
                         v-icon.grey--text mdi-cloud-download
+
+              v-card.mt-3.animated.fadeInUp.wait-p2s
+                v-toolbar(color='primary', dark, dense, flat)
+                  v-toolbar-title.subtitle-1 {{$t(`admin:theme.codeInjection`)}}
+                v-card-text
+                  v-textarea.is-monospaced(
+                    v-model='config.injectCSS'
+                    :label='$t(`admin:theme.cssOverride`)'
+                    outlined
+                    color='primary'
+                    persistent-hint
+                    :hint='$t(`admin:theme.cssOverrideHint`)'
+                    auto-grow
+                    )
+                  i18next.caption.pl-2.ml-1(path='admin:theme.cssOverrideWarning', tag='div')
+                    strong.red--text(place='caution') {{$t('admin:theme.cssOverrideWarningCaution')}}
+                    code(place='cssClass') .contents
+                  v-textarea.is-monospaced.mt-3(
+                    v-model='config.injectHead'
+                    :label='$t(`admin:theme.headHtmlInjection`)'
+                    outlined
+                    color='primary'
+                    persistent-hint
+                    :hint='$t(`admin:theme.headHtmlInjectionHint`)'
+                    auto-grow
+                    )
+                  v-textarea.is-monospaced.mt-2(
+                    v-model='config.injectBody'
+                    :label='$t(`admin:theme.bodyHtmlInjection`)'
+                    outlined
+                    color='primary'
+                    persistent-hint
+                    :hint='$t(`admin:theme.bodyHtmlInjectionHint`)'
+                    auto-grow
+                    )
 </template>
 
 <script>
@@ -227,5 +246,10 @@ export default {
 </script>
 
 <style lang='scss'>
-
+.v-textarea.is-monospaced textarea {
+  font-family: 'Roboto Mono', 'Courier New', Courier, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
 </style>

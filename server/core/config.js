@@ -19,7 +19,11 @@ module.exports = {
     }
 
     if (process.env.dockerdev) {
-      confPaths.config = path.join(WIKI.ROOTPATH, `dev/docker-${process.env.DEVDB}/config.yml`)
+      confPaths.config = path.join(WIKI.ROOTPATH, `dev/containers/config.yml`)
+    }
+
+    if (process.env.CONFIG_FILE) {
+      confPaths.config = path.resolve(WIKI.ROOTPATH, process.env.CONFIG_FILE)
     }
 
     process.stdout.write(chalk.blue(`Loading configuration from ${confPaths.config}... `))
@@ -54,10 +58,23 @@ module.exports = {
 
     const packageInfo = require(path.join(WIKI.ROOTPATH, 'package.json'))
 
+    // Load DB Password from Docker Secret File
+    if (process.env.DB_PASS_FILE) {
+      console.info(chalk.blue(`DB_PASS_FILE is defined. Will use secret from file.`))
+      try {
+        appconfig.db.pass = fs.readFileSync(process.env.DB_PASS_FILE, 'utf8').trim()
+      } catch (err) {
+        console.error(chalk.red.bold(`>>> Failed to read Docker Secret File using path defined in DB_PASS_FILE env variable!`))
+        console.error(err.message)
+        process.exit(1)
+      }
+    }
+
     WIKI.config = appconfig
     WIKI.data = appdata
     WIKI.version = packageInfo.version
     WIKI.releaseDate = packageInfo.releaseDate
+    WIKI.devMode = (packageInfo.dev === true)
   },
 
   /**
@@ -78,7 +95,7 @@ module.exports = {
    * @param {Array} keys Array of keys to save
    * @returns Promise
    */
-  async saveToDb(keys) {
+  async saveToDb(keys, propagate = true) {
     try {
       for (let key of keys) {
         let value = _.get(WIKI.config, key, null)
@@ -89,6 +106,9 @@ module.exports = {
         if (affectedRows === 0 && value) {
           await WIKI.models.settings.query().insert({ key, value })
         }
+      }
+      if (propagate) {
+        WIKI.events.outbound.emit('reloadConfig')
       }
     } catch (err) {
       WIKI.logger.error(`Failed to save configuration to DB: ${err.message}`)
@@ -102,5 +122,15 @@ module.exports = {
    */
   async applyFlags() {
     WIKI.models.knex.client.config.debug = WIKI.config.flags.sqllog
+  },
+
+  /**
+   * Subscribe to HA propagation events
+   */
+  subscribeToEvents() {
+    WIKI.events.inbound.on('reloadConfig', async () => {
+      await WIKI.configSvc.loadFromDb()
+      await WIKI.configSvc.applyFlags()
+    })
   }
 }

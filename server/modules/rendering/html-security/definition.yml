@@ -5,14 +5,18 @@ author: requarks.io
 icon: mdi-fire
 enabledDefault: true
 dependsOn: htmlCore
+step: post
+order: 99999
 props:
-  stripJS:
+  safeHTML:
     type: Boolean
-    title: Strip Javascript
-    default: false
-    hint: Javascript code within code blocks won't be affected
-  filterBadWords:
+    title: Sanitize HTML
+    default: true
+    hint: Sanitize HTML from unsafe attributes and tags that could lead to XSS attacks
+    order: 1
+  allowIFrames:
     type: Boolean
-    title: Filter Bad Words
+    title: Allow iframes
     default: false
-    hint: Replace bad words with asterisks
+    hint: iframes will not be stripped if enabled. (Not recommended)
+    order: 2

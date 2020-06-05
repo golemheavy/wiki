@@ -1,8 +1,6 @@
 const md = require('markdown-it')
-const mdAnchor = require('markdown-it-anchor')
 const mdAttrs = require('markdown-it-attrs')
 const _ = require('lodash')
-const uslug = require('uslug')
 
 const quoteStyles = {
   Chinese: '””‘’',
@@ -32,19 +30,13 @@ module.exports = {
       }
     })
 
-    mkdown.use(mdAnchor, {
-      slugify: s => uslug(s),
-      permalink: true,
-      permalinkClass: 'toc-anchor',
-      permalinkSymbol: '¶',
-      permalinkBefore: true
+    mkdown.use(mdAttrs, {
+      allowedAttributes: ['id', 'class', 'target']
     })
-
-    mkdown.use(mdAttrs)
 
     for (let child of this.children) {
       const renderer = require(`../${_.kebabCase(child.key)}/renderer.js`)
-      renderer.init(mkdown, child.config)
+      await renderer.init(mkdown, child.config)
     }
 
     return mkdown.render(this.input)

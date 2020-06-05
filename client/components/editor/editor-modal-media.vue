@@ -1,24 +1,24 @@
 <template lang='pug'>
-  v-card.editor-modal-media.animated.fadeInLeft(flat, tile)
+  v-card.editor-modal-media.animated.fadeInLeft(flat, tile, :class='`is-editor-` + editorKey')
     v-container.pa-3(grid-list-lg, fluid)
       v-layout(row, wrap)
         v-flex(xs12, lg9)
-          v-card.radius-7.animated.fadeInLeft.wait-p1s(:light='!$vuetify.dark', :dark='$vuetify.dark')
+          v-card.radius-7.animated.fadeInLeft.wait-p1s(:light='!$vuetify.theme.dark', :dark='$vuetify.theme.dark')
             v-card-text
               .d-flex
-                v-toolbar.radius-7(:color='$vuetify.dark ? `teal` : `teal lighten-5`', dense, flat, height='44')
-                  .body-2(:class='$vuetify.dark ? `white--text` : `teal--text`') {{$t('editor:assets.title')}}
+                v-toolbar.radius-7(:color='$vuetify.theme.dark ? `teal` : `teal lighten-5`', dense, flat, height='44')
+                  .body-2(:class='$vuetify.theme.dark ? `white--text` : `teal--text`') {{$t('editor:assets.title')}}
                   v-spacer
-                  v-btn(flat, icon, @click='refresh', tile, small)
-                    v-icon(:color='$vuetify.dark ? `white` : `teal`') mdi-refresh
+                  v-btn(text, icon, @click='refresh')
+                    v-icon(:color='$vuetify.theme.dark ? `white` : `teal`') mdi-refresh
                 v-dialog(v-model='newFolderDialog', max-width='550')
                   template(v-slot:activator='{ on }')
                     v-btn.ml-3.my-0.mr-0.radius-7(outlined, large, color='teal', :icon='$vuetify.breakpoint.xsOnly', v-on='on')
                       v-icon(:left='$vuetify.breakpoint.mdAndUp') mdi-plus
-                      span.hidden-sm-and-down(:class='$vuetify.dark ? `teal--text text--lighten-3` : ``') {{$t('editor:assets.newFolder')}}
+                      span.hidden-sm-and-down(:class='$vuetify.theme.dark ? `teal--text text--lighten-3` : ``') {{$t('editor:assets.newFolder')}}
                   v-card
                     .dialog-header.is-short.subtitle-1 {{$t('editor:assets.newFolder')}}
-                    v-card-text
+                    v-card-text.pt-5
                       v-text-field.md2(
                         outlined
                         prepend-icon='mdi-folder-outline'
@@ -35,7 +35,7 @@
                       v-spacer
                       v-btn(text, @click='newFolderDialog = false') {{$t('common:actions.cancel')}}
                       v-btn.px-3(color='primary', @click='createFolder', :disabled='!isFolderNameValid', :loading='newFolderLoading') {{$t('common:actions.create')}}
-              v-toolbar(flat, dense, :color='$vuetify.dark ? `grey darken-3` : `white`')
+              v-toolbar(flat, dense, :color='$vuetify.theme.dark ? `grey darken-3` : `white`')
                 template(v-if='folderTree.length > 0')
                   .body-2
                     span.mr-1 /
@@ -44,11 +44,11 @@
                       span.mx-1 /
                 .body-2(v-else) / #[em root]
               template(v-if='folders.length > 0 || currentFolderId > 0')
-                v-btn.is-icon.mx-1(:color='$vuetify.dark ? `grey lighten-1` : `grey darken-2`', outlined, :dark='currentFolderId > 0', @click='upFolder()', :disabled='currentFolderId === 0')
+                v-btn.is-icon.mx-1(:color='$vuetify.theme.dark ? `grey lighten-1` : `grey darken-2`', outlined, :dark='currentFolderId > 0', @click='upFolder()', :disabled='currentFolderId === 0')
                   v-icon mdi-folder-upload
                 v-btn.btn-normalcase.mx-1(v-for='folder of folders', :key='folder.id', depressed,  color='grey darken-2', dark, @click='downFolder(folder)')
                   v-icon(left) mdi-folder
-                  span.caption {{ folder.name }}
+                  span.caption(style='text-transform: none;') {{ folder.name }}
                 v-divider.mt-2
               v-data-table(
                 :items='assets'
@@ -57,6 +57,8 @@
                 :items-per-page='15'
                 :loading='loading'
                 must-sort,
+                sort-by='ID',
+                sort-desc,
                 hide-default-footer,
                 dense
               )
@@ -64,21 +66,21 @@
                   tr.is-clickable(
                     @click.left='currentFileId = props.item.id'
                     @click.right.prevent=''
-                    :class='currentFileId === props.item.id ? ($vuetify.dark ? `grey darken-3-d5` : `teal lighten-5`) : ``'
+                    :class='currentFileId === props.item.id ? ($vuetify.theme.dark ? `grey darken-3-d5` : `teal lighten-5`) : ``'
                     )
-                    td.text-xs-right(v-if='$vuetify.breakpoint.smAndUp') {{ props.item.id }}
+                    td.caption(v-if='$vuetify.breakpoint.smAndUp') {{ props.item.id }}
                     td
-                      .body-2(:class='currentFileId === props.item.id ? `teal--text` : ``') {{ props.item.filename }}
+                      .body-2: strong(:class='currentFileId === props.item.id ? `teal--text` : ``') {{ props.item.filename }}
                       .caption.grey--text {{ props.item.description }}
                     td.text-xs-center(v-if='$vuetify.breakpoint.lgAndUp')
-                      v-chip.ma-0(small, :color='$vuetify.dark ? `grey darken-4` : `grey lighten-4`')
-                        .caption {{props.item.ext.toUpperCase().substring(1)}}
-                    td(v-if='$vuetify.breakpoint.mdAndUp') {{ props.item.fileSize | prettyBytes }}
-                    td(v-if='$vuetify.breakpoint.mdAndUp') {{ props.item.createdAt | moment('from') }}
+                      v-chip.ma-0(x-small, :color='$vuetify.theme.dark ? `grey darken-4` : `grey lighten-4`')
+                        .overline {{props.item.ext.toUpperCase().substring(1)}}
+                    td.caption(v-if='$vuetify.breakpoint.mdAndUp') {{ props.item.fileSize | prettyBytes }}
+                    td.caption(v-if='$vuetify.breakpoint.mdAndUp') {{ props.item.createdAt | moment('from') }}
                     td(v-if='$vuetify.breakpoint.smAndUp')
                       v-menu(offset-x, min-width='200')
                         template(v-slot:activator='{ on }')
-                          v-btn(icon, v-on='on', tile, small)
+                          v-btn(icon, v-on='on', tile, small, @click.left='currentFileId = props.item.id')
                             v-icon(color='grey darken-2') mdi-dots-horizontal
                         v-list(nav, style='border-top: 5px solid #444;')
                           v-list-item(@click='', disabled)
@@ -115,22 +117,25 @@
               .text-xs-center.py-2(v-if='this.pageTotal > 1')
                 v-pagination(v-model='pagination', :length='pageTotal', color='teal')
               .d-flex.mt-3
-                v-toolbar.radius-7(flat, :color='$vuetify.dark ? `grey darken-2` : `grey lighten-4`', dense, height='44')
-                  .body-2(:class='$vuetify.dark ? `grey--text text--lighten-1` : `grey--text text--darken-1`') {{$t('editor:assets.fileCount', { count: assets.length })}}
+                v-toolbar.radius-7(flat, :color='$vuetify.theme.dark ? `grey darken-2` : `grey lighten-4`', dense, height='44')
+                  .body-2(:class='$vuetify.theme.dark ? `grey--text text--lighten-1` : `grey--text text--darken-1`') {{$t('editor:assets.fileCount', { count: assets.length })}}
+                v-btn.ml-3.mr-0.my-0.radius-7(color='red darken-2', large, @click='cancel', dark)
+                  v-icon(left) mdi-close
+                  span {{$t('common:actions.cancel')}}
                 v-btn.ml-3.mr-0.my-0.radius-7(color='teal', large, @click='insert', :disabled='!currentFileId', :dark='currentFileId !== null')
                   v-icon(left) mdi-playlist-plus
                   span {{$t('common:actions.insert')}}
 
         v-flex(xs12, lg3)
-          v-card.radius-7.animated.fadeInRight.wait-p3s(:light='!$vuetify.dark', :dark='$vuetify.dark')
+          v-card.radius-7.animated.fadeInRight.wait-p3s(:light='!$vuetify.theme.dark', :dark='$vuetify.theme.dark')
             v-card-text
               .d-flex
-                v-toolbar.radius-7(:color='$vuetify.dark ? `teal` : `teal lighten-5`', dense, flat, height='44')
-                  v-icon.mr-3(:color='$vuetify.dark ? `white` : `teal`') mdi-cloud-upload
-                  .body-2(:class='$vuetify.dark ? `white--text` : `teal--text`') {{$t('editor:assets.uploadAssets')}}
+                v-toolbar.radius-7(:color='$vuetify.theme.dark ? `teal` : `teal lighten-5`', dense, flat, height='44')
+                  v-icon.mr-3(:color='$vuetify.theme.dark ? `white` : `teal`') mdi-cloud-upload
+                  .body-2(:class='$vuetify.theme.dark ? `white--text` : `teal--text`') {{$t('editor:assets.uploadAssets')}}
                 v-btn.my-0.ml-3.mr-0.radius-7(outlined, large, color='teal', @click='browse', v-if='$vuetify.breakpoint.mdAndUp')
-                  v-icon(left) mdi-library-plus
-                  span(:class='$vuetify.dark ? `teal--text text--lighten-3` : ``') {{$t('common:actions.browse')}}
+                  v-icon(left) mdi-plus-box-multiple
+                  span(:class='$vuetify.theme.dark ? `teal--text text--lighten-3` : ``') {{$t('common:actions.browse')}}
               file-pond.mt-3(
                 name='mediaUpload'
                 ref='pond'
@@ -149,11 +154,11 @@
               v-spacer
               v-btn.px-4(color='teal', dark, @click='upload') {{$t('common:actions.upload')}}
 
-          v-card.mt-3.radius-7.animated.fadeInRight.wait-p4s(:light='!$vuetify.dark', :dark='$vuetify.dark')
+          v-card.mt-3.radius-7.animated.fadeInRight.wait-p4s(:light='!$vuetify.theme.dark', :dark='$vuetify.theme.dark')
             v-card-text.pb-0
-              v-toolbar.radius-7(:color='$vuetify.dark ? `teal` : `teal lighten-5`', dense, flat)
-                v-icon.mr-3(:color='$vuetify.dark ? `white` : `teal`') mdi-cloud-download
-                .body-2(:class='$vuetify.dark ? `white--text` : `teal--text`') {{$t('editor:assets.fetchImage')}}
+              v-toolbar.radius-7(:color='$vuetify.theme.dark ? `teal` : `teal lighten-5`', dense, flat)
+                v-icon.mr-3(:color='$vuetify.theme.dark ? `white` : `teal`') mdi-cloud-download
+                .body-2(:class='$vuetify.theme.dark ? `white--text` : `teal--text`') {{$t('editor:assets.fetchImage')}}
                 v-spacer
                 v-chip(label, color='white', small).teal--text coming soon
               v-text-field.mt-3(
@@ -169,11 +174,11 @@
               v-spacer
               v-btn.px-4(color='teal', disabled) {{$t('common:actions.fetch')}}
 
-          v-card.mt-3.radius-7.animated.fadeInRight.wait-p4s(:light='!$vuetify.dark', :dark='$vuetify.dark')
+          v-card.mt-3.radius-7.animated.fadeInRight.wait-p4s(:light='!$vuetify.theme.dark', :dark='$vuetify.theme.dark')
             v-card-text.pb-0
-              v-toolbar.radius-7(:color='$vuetify.dark ? `teal` : `teal lighten-5`', dense, flat)
-                v-icon.mr-3(:color='$vuetify.dark ? `white` : `teal`') mdi-format-align-top
-                .body-2(:class='$vuetify.dark ? `white--text` : `teal--text`') {{$t('editor:assets.imageAlign')}}
+              v-toolbar.radius-7(:color='$vuetify.theme.dark ? `teal` : `teal lighten-5`', dense, flat)
+                v-icon.mr-3(:color='$vuetify.theme.dark ? `white` : `teal`') mdi-format-align-top
+                .body-2(:class='$vuetify.theme.dark ? `white--text` : `teal--text`') {{$t('editor:assets.imageAlign')}}
               v-select.mt-3(
                 v-model='imageAlignment'
                 :items='imageAlignments'
@@ -186,14 +191,14 @@
     //- RENAME DIALOG
 
     v-dialog(v-model='renameDialog', max-width='550', persistent)
-      v-card.wiki-form
+      v-card
         .dialog-header.is-short.is-orange
-          v-icon.mr-2(color='white') keyboard
+          v-icon.mr-2(color='white') mdi-keyboard
           span {{$t('editor:assets.renameAsset')}}
-        v-card-text
+        v-card-text.pt-5
           .body-2 {{$t('editor:assets.renameAssetSubtitle')}}
           v-text-field(
-            outline
+            outlined
             single-line
             :counter='255'
             v-model='renameAssetName'
@@ -202,24 +207,24 @@
           )
         v-card-chin
           v-spacer
-          v-btn(flat, @click='renameDialog = false', :disabled='renameAssetLoading') {{$t('common:actions.cancel')}}
-          v-btn(color='orange darken-3', @click='renameAsset', :loading='renameAssetLoading').white--text {{$t('common:actions.rename')}}
+          v-btn(text, @click='renameDialog = false', :disabled='renameAssetLoading') {{$t('common:actions.cancel')}}
+          v-btn.px-3(color='orange darken-3', @click='renameAsset', :loading='renameAssetLoading').white--text {{$t('common:actions.rename')}}
 
     //- DELETE DIALOG
 
     v-dialog(v-model='deleteDialog', max-width='550', persistent)
-      v-card.wiki-form
+      v-card
         .dialog-header.is-short.is-red
-          v-icon.mr-2(color='white') highlight_off
+          v-icon.mr-2(color='white') mdi-trash-can-outline
           span {{$t('editor:assets.deleteAsset')}}
-        v-card-text
+        v-card-text.pt-5
           .body-2 {{$t('editor:assets.deleteAssetConfirm')}}
           .body-2.red--text.text--darken-2 {{currentAsset.filename}}?
           .caption.mt-3 {{$t('editor:assets.deleteAssetWarn')}}
         v-card-chin
           v-spacer
-          v-btn(flat, @click='deleteDialog = false', :disabled='deleteAssetLoading') {{$t('common:actions.cancel')}}
-          v-btn(color='red darken-2', @click='deleteAsset', :loading='deleteAssetLoading').white--text {{$t('common:actions.delete')}}
+          v-btn(text, @click='deleteDialog = false', :disabled='deleteAssetLoading') {{$t('common:actions.cancel')}}
+          v-btn.px-3(color='red darken-2', @click='deleteAsset', :loading='deleteAssetLoading').white--text {{$t('common:actions.delete')}}
 </template>
 
 <script>
@@ -280,6 +285,7 @@ export default {
       get() { return this.value },
       set(val) { this.$emit('input', val) }
     },
+    editorKey: get('editor/editorKey'),
     activeModal: sync('editor/activeModal'),
     folderTree: get('editor/media@folderTree'),
     currentFolderId: sync('editor/media@currentFolderId'),
@@ -293,12 +299,12 @@ export default {
     },
     headers() {
       return _.compact([
-        this.$vuetify.breakpoint.smAndUp && { text: this.$t('editor:assets.headerId'), value: 'id', width: 50, align: 'right' },
+        this.$vuetify.breakpoint.smAndUp && { text: this.$t('editor:assets.headerId'), value: 'id', width: 80 },
         { text: this.$t('editor:assets.headerFilename'), value: 'filename' },
-        this.$vuetify.breakpoint.lgAndUp && { text: this.$t('editor:assets.headerType'), value: 'ext', width: 50 },
+        this.$vuetify.breakpoint.lgAndUp && { text: this.$t('editor:assets.headerType'), value: 'ext', width: 90 },
         this.$vuetify.breakpoint.mdAndUp && { text: this.$t('editor:assets.headerFileSize'), value: 'fileSize', width: 110 },
         this.$vuetify.breakpoint.mdAndUp && { text: this.$t('editor:assets.headerAdded'), value: 'createdAt', width: 175 },
-        this.$vuetify.breakpoint.smAndUp && { text: this.$t('editor:assets.headerActions'), value: '', width: 40, sortable: false, align: 'right' }
+        this.$vuetify.breakpoint.smAndUp && { text: this.$t('editor:assets.headerActions'), value: '', width: 80, sortable: false, align: 'right' }
       ])
     },
     isFolderNameValid() {
@@ -494,6 +500,9 @@ export default {
       }
       this.deleteAssetLoading = false
       this.$store.commit(`loadingStop`, 'editor-media-deleteasset')
+    },
+    cancel () {
+      this.activeModal = ''
     }
   },
   apollo: {
@@ -532,7 +541,7 @@ export default {
 
 <style lang='scss'>
 .editor-modal-media {
-  position: fixed;
+  position: fixed !important;
   top: 112px;
   left: 64px;
   z-index: 10;
@@ -547,6 +556,44 @@ export default {
     height: calc(100vh - 112px - 24px);
   }
 
+  &.is-editor-ckeditor {
+    top: 64px;
+    left: 0;
+    width: 100%;
+    height: calc(100vh - 64px - 26px);
+
+    @include until($tablet) {
+      top: 56px;
+      left: 0;
+      width: 100%;
+      height: calc(100vh - 56px - 24px);
+    }
+  }
+
+  &.is-editor-code {
+    top: 64px;
+    height: calc(100vh - 64px - 26px);
+
+    @include until($tablet) {
+      top: 56px;
+      height: calc(100vh - 56px - 24px);
+    }
+  }
+
+  &.is-editor-common {
+    top: 64px;
+    left: 0;
+    width: 100%;
+    height: calc(100vh - 64px);
+
+    @include until($tablet) {
+      top: 56px;
+      left: 0;
+      width: 100%;
+      height: calc(100vh - 56px);
+    }
+  }
+
   .filepond--root {
     margin-bottom: 0;
   }
@@ -557,6 +604,10 @@ export default {
     > label {
       cursor: pointer;
     }
+  }
+
+  .filepond--file-action-button.filepond--action-process-item {
+    display: none;
   }
 
   .v-btn--icon {

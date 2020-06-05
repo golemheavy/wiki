@@ -3,12 +3,12 @@
     v-layout(row wrap)
       v-flex(xs12)
         .admin-header
-          img.animated.fadeInUp(src='/svg/icon-people.svg', alt='Groups', style='width: 80px;')
+          img.animated.fadeInUp(src='/_assets/svg/icon-people.svg', alt='Groups', style='width: 80px;')
           .admin-header-title
             .headline.blue--text.text--darken-2.animated.fadeInLeft Groups
             .subtitle-1.grey--text.animated.fadeInLeft.wait-p4s Manage groups and their permissions
           v-spacer
-          v-btn.animated.fadeInDown.wait-p2s.mr-3(color='grey', outlined, @click='refresh', large)
+          v-btn.animated.fadeInDown.wait-p2s.mr-3(color='grey', outlined, @click='refresh', icon)
             v-icon mdi-refresh
           v-dialog(v-model='newGroupDialog', max-width='500')
             template(v-slot:activator='{ on }')
@@ -17,7 +17,7 @@
                 span New Group
             v-card
               .dialog-header.is-short New Group
-              v-card-text
+              v-card-text.pt-5
                 v-text-field.md2(
                   outlined
                   prepend-icon='mdi-account-group'
@@ -37,25 +37,29 @@
             :items='groups'
             :headers='headers'
             :search='search'
-            :pagination.sync='pagination'
-            :rows-per-page-items='[15]'
-            hide-actions
+            :page.sync='pagination'
+            :items-per-page='15'
+            :loading='loading'
+            @page-count='pageCount = $event'
+            must-sort,
+            hide-default-footer
           )
-            template(slot='items', slot-scope='props')
+            template(slot='item', slot-scope='props')
               tr.is-clickable(:active='props.selected', @click='$router.push("/groups/" + props.item.id)')
-                td.text-xs-right {{ props.item.id }}
+                td {{ props.item.id }}
                 td: strong {{ props.item.name }}
                 td {{ props.item.userCount }}
                 td {{ props.item.createdAt | moment('calendar') }}
                 td {{ props.item.updatedAt | moment('calendar') }}
                 td
                   v-tooltip(left, v-if='props.item.isSystem')
-                    v-icon(slot='activator') lock_outline
+                    template(v-slot:activator='{ on }')
+                      v-icon(v-on='on') mdi-lock-outline
                     span System Group
             template(slot='no-data')
-              v-alert.ma-3(icon='warning', :value='true', outline) No groups to display.
-          .text-xs-center.py-2(v-if='this.pages > 0')
-            v-pagination(v-model='pagination.page', :length='pages')
+              v-alert.ma-3(icon='mdi-alert', :value='true', outline) No groups to display.
+          .text-xs-center.py-2(v-if='pageCount > 1')
+            v-pagination(v-model='pagination', :length='pageCount')
 </template>
 
 <script>
@@ -70,26 +74,19 @@ export default {
       newGroupDialog: false,
       newGroupName: '',
       selectedGroup: {},
-      pagination: {},
+      pagination: 1,
+      pageCount: 0,
       groups: [],
       headers: [
-        { text: 'ID', value: 'id', width: 50, align: 'right' },
+        { text: 'ID', value: 'id', width: 80, sortable: true },
         { text: 'Name', value: 'name' },
         { text: 'Users', value: 'userCount', width: 200 },
         { text: 'Created', value: 'createdAt', width: 250 },
         { text: 'Last Updated', value: 'updatedAt', width: 250 },
         { text: '', value: 'isSystem', width: 20, sortable: false }
       ],
-      search: ''
-    }
-  },
-  computed: {
-    pages () {
-      if (this.pagination.rowsPerPage == null || this.pagination.totalItems == null) {
-        return 0
-      }
-
-      return Math.ceil(this.pagination.totalItems / this.pagination.rowsPerPage)
+      search: '',
+      loading: false
     }
   },
   watch: {
@@ -158,6 +155,7 @@ export default {
       fetchPolicy: 'network-only',
       update: (data) => data.groups.list,
       watchLoading (isLoading) {
+        this.loading = isLoading
         this.$store.commit(`loading${isLoading ? 'Start' : 'Stop'}`, 'admin-groups-refresh')
       }
     }

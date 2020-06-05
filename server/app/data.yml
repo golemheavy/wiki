@@ -16,17 +16,19 @@ defaults:
       db: wiki
       ssl: false
       storage: ./db.sqlite
+      sslOptions:
+        auto: true
     ssl:
       enabled: false
     pool:
-      min: 0
+      min: 1
     bindIP: 0.0.0.0
     logLevel: info
-    uploads:
-      maxFileSize: 5242880
-      maxFiles: 10
     offline: false
+    ha: false
     # DB defaults
+    api:
+      isEnabled: false
     graphEndpoint: 'https://graph.requarks.io'
     lang:
       code: en
@@ -38,19 +40,45 @@ defaults:
       clientId: ''
       isEnabled: false
     title: Wiki.js
+    company: ''
+    contentLicense: ''
+    logoUrl: https://static.requarks.io/logo/wikijs-butterfly.svg
+    mail:
+      host: ''
+      secure: true
+      verifySSL: true
+    nav:
+      mode: 'MIXED'
     theming:
       theme: 'default'
       iconset: 'md'
       darkMode: false
+    features:
+      featurePageRatings: true
+      featurePageComments: true
+      featurePersonalWikis: true
+    security:
+      securityOpenRedirect: true
+      securityIframe: true
+      securityReferrerPolicy: true
+      securityTrustProxy: true
+      securitySRI: true
+      securityHSTS: false
+      securityHSTSDuration: 300
+      securityCSP: false
+      securityCSPDirectives: ''
+    server:
+      sslRedir: false
+    uploads:
+      maxFileSize: 5242880
+      maxFiles: 10
     flags:
       ldapdebug: false
       sqllog: false
     # System defaults
-    channel: BETA
+    channel: STABLE
     setup: false
-    paths:
-      content: ./content
-      data: ./data
+    dataPath: ./data
     cors:
       credentials: true
       maxAge: 600
@@ -58,6 +86,7 @@ defaults:
       origin: true
     search:
       maxHits: 100
+    maintainerEmail: security@requarks.io
 localeNamespaces:
   - admin
   - auth
@@ -67,14 +96,23 @@ jobs:
     onInit: true
     schedule: PT15M
     offlineSkip: false
+    repeat: true
   syncGraphLocales:
     onInit: true
     schedule: P1D
     offlineSkip: true
+    repeat: true
   syncGraphUpdates:
     onInit: true
     schedule: P1D
     offlineSkip: true
+    repeat: true
+  rebuildTree:
+    onInit: true
+    offlineSkip: false
+    repeat: false
+    immediate: true
+    worker: true
 groups:
   defaultPermissions:
     - 'read:pages'

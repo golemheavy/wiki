@@ -3,12 +3,12 @@
     v-layout(row, wrap)
       v-flex(xs12)
         .admin-header
-          img.animated.fadeInUp(src='/svg/icon-line-chart.svg', alt='Analytics', style='width: 80px;')
+          img.animated.fadeInUp(src='/_assets/svg/icon-line-chart.svg', alt='Analytics', style='width: 80px;')
           .admin-header-title
             .headline.primary--text.animated.fadeInLeft {{ $t('admin:analytics.title') }}
             .subtitle-1.grey--text.animated.fadeInLeft.wait-p4s {{ $t('admin:analytics.subtitle') }}
           v-spacer
-          v-btn.animated.fadeInDown.wait-p2s.mr-3(outlined, color='grey', @click='refresh', large)
+          v-btn.animated.fadeInDown.wait-p2s.mr-3(icon, outlined, color='grey', @click='refresh')
             v-icon mdi-refresh
           v-btn.animated.fadeInDown(color='success', @click='save', depressed, large)
             v-icon(left) mdi-check
@@ -37,6 +37,15 @@
         v-card.animated.fadeInUp.wait-p2s
           v-toolbar(color='primary', dense, flat, dark)
             .subtitle-1 {{provider.title}}
+            v-spacer
+            v-switch(
+              dark
+              color='blue lighten-5'
+              label='Active'
+              v-model='provider.isEnabled'
+              hide-details
+              inset
+              )
           v-card-text
             v-form
               .analytic-provider-logo
@@ -54,7 +63,7 @@
                   :key='cfg.key'
                   :label='cfg.value.title'
                   v-model='cfg.value.value'
-                  prepend-icon='mdi-settings-box'
+                  prepend-icon='mdi-cog-box'
                   :hint='cfg.value.hint ? cfg.value.hint : ""'
                   persistent-hint
                   :class='cfg.value.hint ? "mb-2" : ""'
@@ -65,9 +74,10 @@
                   :label='cfg.value.title'
                   v-model='cfg.value.value'
                   color='primary'
-                  prepend-icon='mdi-settings-box'
+                  prepend-icon='mdi-cog-box'
                   :hint='cfg.value.hint ? cfg.value.hint : ""'
                   persistent-hint
+                  inset
                   )
                 v-textarea(
                   v-else-if='cfg.value.type === "string" && cfg.value.multiline'
@@ -75,7 +85,7 @@
                   :key='cfg.key'
                   :label='cfg.value.title'
                   v-model='cfg.value.value'
-                  prepend-icon='mdi-settings-box'
+                  prepend-icon='mdi-cog-box'
                   :hint='cfg.value.hint ? cfg.value.hint : ""'
                   persistent-hint
                   :class='cfg.value.hint ? "mb-2" : ""'
@@ -86,7 +96,7 @@
                   :key='cfg.key'
                   :label='cfg.value.title'
                   v-model='cfg.value.value'
-                  prepend-icon='mdi-settings-box'
+                  prepend-icon='mdi-cog-box'
                   :hint='cfg.value.hint ? cfg.value.hint : ""'
                   persistent-hint
                   :class='cfg.value.hint ? "mb-2" : ""'
